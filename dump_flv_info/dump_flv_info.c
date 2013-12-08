@@ -2,7 +2,7 @@
  * Copyright (c) 2013 Steven Liu
  *
  *
- * FFmpeg is free software; you can redistribute it and/or
+ * flv_info_dump is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
  * version 2.1 of the License, or (at your option) any later version.
@@ -30,6 +30,8 @@
 #define TAG_FLV_L       'L'
 #define TAG_FLV_V       'V'
 #define TAG_TYPE_SCRIPTDATA     0x12
+#define TAG_TYPE_VIDEO          0x09
+#define TAG_TYPE_AUDIO          0x08
 int script_type_parse(unsigned char *data);
 
 union av_intfloat64 {
@@ -95,6 +97,22 @@ struct script_object {
 };
 typedef struct script_object_name script_object_t;
 
+struct video_tag_body {
+
+};
+
+struct video_tag_header {
+    unsigned char frame_type;
+    unsigned char codec_id;
+    unsigned char avc_packet_type;
+    unsigned int composition_time;
+    struct video_tag_body tag_body;
+};
+
+struct video_key_value {
+    char type;
+    char *desc;
+};
 
 /**
  * Reinterpret a 64-bit integer as a double.
@@ -104,6 +122,25 @@ static double int2double(uint64_t i)
     union av_intfloat64 v;
     v.i = i;
     return v.f;
+}
+
+int get_video_frame_type(unsigned char type)
+{
+    return (type & 0xF0) >> 4;
+}
+
+int get_video_codec_id(unsigned char type)
+{
+    return type & 0x0F;
+}
+
+int get_video_composition_time(unsigned char *data)
+{
+    char composition_time[4] = {0, 0, 0, 0};
+
+    snprintf(composition_time, sizeof(composition_time), "0x%0.2x%0.2x%0.2x", data[0], data[1], data[2]);
+    fprintf(stdout, "[%s %d] composition_time = [%s]\n", __func__, __LINE__, composition_time);
+    return strtoul(composition_time, NULL, 16);
 }
 
 /*
@@ -223,7 +260,7 @@ int get_string_len(unsigned char *data)
 */
 int get_bool_value(unsigned char *data)
 {
-   return *data;
+    return *data;
 }
 
 /*
@@ -416,10 +453,114 @@ int do_tag_onMetaData(int fd, int size)
             break;
         }
         ret = script_type_parse(p);
-        fprintf(stdout, "in while 1 offset = [%d]\n", p - onMetaData);
+        fprintf(stdout, "in while 1 offset = [%ld]\n", p - onMetaData);
         p += ret;
     }
     return p - onMetaData;
+}
+
+int parse_video_header(unsigned char *data, struct video_tag_header *header)
+{
+    unsigned char *p = data;
+    struct video_key_value video_frame_type[] = {
+        {0, NULL},
+        {1, "key frame (for AVC, a seekable frame)"},
+        {2, "inter frame (for AVC, a non-seekable frame)"},
+        {3, "disposable inter frame (H.263 only)"},
+        {4, " generated key frame (reserved for server use only)"},
+        {5, "video info/command frame"},
+    };
+
+    struct video_key_value codec_type[] = {
+        {0, NULL},
+        {1, NULL},
+        {2, "Sorenson H.263"},
+        {3, "Screen video"},
+        {4, "On2 VP6"},
+        {5, "On2 VP6 with alpha channel"},
+        {6, "Screen video version 2"},
+        {7, "AVC/H.264"},
+    };
+
+    struct video_key_value pkt_type[] = {
+        {0, "AVC sequence header"},
+        {1, "AVC NALU"},
+        {2, "AVC end of sequence"},
+    };
+
+    header->frame_type = get_video_frame_type(*p);
+    header->codec_id = get_video_codec_id(*p);
+    p++;
+    if (header->codec_id == 0x07) {
+        header->avc_packet_type = *p;
+        p++;
+        header->composition_time = get_video_composition_time(p);
+        p += 3;
+    }
+
+    fprintf(stdout, "frame_type = [%s], codec_id = [%s], avc_packet_type = [%s], composition_time = [%d]\n",
+            video_frame_type[header->frame_type].desc, codec_type[header->codec_id].desc,
+            pkt_type[header->avc_packet_type].desc, header->composition_time);
+    return p - data;
+}
+
+int do_tag_video(int fd, int size)
+{
+    int ret = 0;
+    unsigned char *p = NULL;
+    unsigned char *video_data = malloc(size);
+    struct video_tag_header video_header;
+
+    memset(video_data, 0, size);
+
+    ret = read(fd, video_data, size);
+    fprintf(stdout, "read = [%d] bytes\n", ret);
+    p = video_data;
+
+    memset(&video_header, 0, sizeof(video_header));
+    while(p)
+    {
+        ret = parse_video_header(p, &video_header);
+        p += ret;
+        if (video_header.frame_type == 5) {
+            fprintf(stdout, "Video frame payload or frame info [%c]\n", *p);
+        } else {
+            switch (video_header.codec_id) {
+            case 2:
+                break;
+            case 3:
+                break;
+            case 4:
+                break;
+            case 5:
+                break;
+            case 6:
+                break;
+            case 7:
+                fprintf(stdout, "H.264 Data\n");
+                return 0;
+                break;
+            default:
+                break;
+            }
+        }
+
+    }
+    return 0;
+}
+
+int do_tag_audio(int fd, int size)
+{
+    int ret = 0;
+    unsigned char *p = NULL;
+    unsigned char *audio_data = malloc(size);
+
+    memset(audio_data, 0, size);
+
+    ret = read(fd, audio_data, size);
+    fprintf(stdout, "read = [%d] bytes\n", ret);
+
+    return 0;
 }
 
 /*
@@ -444,15 +585,25 @@ int dump_flv_info(char *filename)
     fprintf(stdout, "filename = [%s]\n", filename);
 
     flv_header_parse(fd);
-    ret = read(fd, PreviousTagSize, sizeof(PreviousTagSize));
-    tag_type = flv_do_tag(fd, &size);
+    while ((ret = read(fd, PreviousTagSize, sizeof(PreviousTagSize))) != 0) {
+        tag_type = flv_do_tag(fd, &size);
+        fprintf(stdout, "type = [%x]\n", tag_type);
+        switch(tag_type) {
+        case TAG_TYPE_SCRIPTDATA:
+            fprintf(stdout, "data_size = [%lu]\n", size);
+            do_tag_onMetaData(fd, size);
+            break;
 
-    switch(tag_type) {
-    case TAG_TYPE_SCRIPTDATA:
-        fprintf(stdout, "data_size = [%lu]\n", size);
-        do_tag_onMetaData(fd, size);
+        case TAG_TYPE_VIDEO:
+            fprintf(stdout, "Type = [Video]\n");
+            do_tag_video(fd, size);
+            break;
 
-        break;
+        case TAG_TYPE_AUDIO:
+            fprintf(stdout, "Type = [Audio]\n");
+            do_tag_audio(fd, size);
+            break;
+        }
     }
     return 0;
 }
