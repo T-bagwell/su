@@ -15,7 +15,7 @@ uint64_t get_local_time()
     time(&timep);
     p = localtime(&timep);
     memset(buffer, 0, sizeof(buffer));
-    snprintf(buffer, sizeof(buffer), "%0.4d%0.2d%0.2d%0.2d%0.2d%0.2d",
+    snprintf(buffer, sizeof(buffer), "%.4d%.2d%.2d%.2d%.2d%.2d",
              1900 + p->tm_year, 1 + p->tm_mon, p->tm_mday,
              p->tm_hour, p->tm_min, p->tm_sec);
     return strtoul(buffer, NULL, 10);

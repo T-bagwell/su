@@ -32,6 +32,7 @@
 #define TAG_TYPE_SCRIPTDATA     0x12
 #define TAG_TYPE_VIDEO          0x09
 #define TAG_TYPE_AUDIO          0x08
+
 int script_type_parse(unsigned char *data);
 
 union av_intfloat64 {
@@ -68,7 +69,7 @@ struct flv_header {
     unsigned char version;
     unsigned char audio_and_video;
     unsigned char DataOffset[4];
-};
+}__attribute__ ((aligned (1)));
 typedef struct flv_header header_t;
 
 struct flv_tag {
@@ -77,7 +78,7 @@ struct flv_tag {
     unsigned char timestamp[3];
     unsigned char extent_timestamp;
     unsigned char stream_id[3];
-};
+}__attribute__((aligned (1)));
 typedef struct flv_tag tag_t;
 
 struct flv_body {
@@ -89,7 +90,7 @@ typedef struct flv_body body_t;
 struct object_name {
     unsigned short length;
     unsigned char name;
-};
+}__attribute__ ((aligned (1))); ;
 typedef struct object_name object_name_t;
 
 struct script_object {
@@ -165,6 +166,11 @@ int get_header_video(char info)
     return info & 0x1;
 }
 
+int get_tag_type (char tag)
+{
+    return tag & 0x1F;
+}
+
 /*
  * flv_header_parse just parse the FLV VERSION tag
  * fd, file describe handle
@@ -177,6 +183,7 @@ int flv_header_parse(int fd)
 
     memset(&header, 0, sizeof(header));
     ret = read(fd, &header, sizeof(header));
+
     if (ret <= 0) {
         fprintf(stderr, "read header error, %d\n", -EINVAL);
         return -EINVAL;
@@ -208,12 +215,18 @@ int flv_do_tag(int fd, unsigned long *size)
     body_t body;
 
 
+    memset(&body, 0, sizeof(body));
+
     ret = read(fd, &body, sizeof(body));
+    fprintf(stdout, "%s %d ret = [%d]\n", __func__, __LINE__, ret);
     if (ret <= 0) {
         fprintf(stderr, "Can not ret the fd errno [%d]\n", -EINVAL);
         return -EINVAL;
     }
 
+    p = (char *)&body;
+//    body.tag.tagtype = get_tag_type(body.tag.tagtype);
+    fprintf(stdout, "body . type = [%x]\n", *p);
     fprintf(stdout, "size = %lu tag->type = [%x]"
             "tag->size = [%0.2x %0.2x %0.2x], tag->timestamp = [%0.2x %0.2x %0.2x], "
             "tag->extent_timestamp = [%0.2x], tag->streamid = [%0.2x %0.2x %0.2x]\n",
@@ -223,9 +236,17 @@ int flv_do_tag(int fd, unsigned long *size)
             body.tag.stream_id[1], body.tag.stream_id[2]);
     memcpy(data_size, body.tag.size, 3);
     p = data_size;
-    snprintf(data_size, sizeof(data_size), "0x%x%x%x", body.tag.size[0], body.tag.size[1], body.tag.size[2]);
-    *size = strtoul(p, NULL, 16);
-    fprintf(stdout, "size = [%lu] \n", *size);
+    snprintf(data_size, sizeof(data_size), "0x%0.2x%0.2x%0.2x", body.tag.size[0], body.tag.size[1], body.tag.size[2]);
+    *size = strtoul(data_size, NULL, 16);
+    fprintf(stdout, "size = [%lu] %s\n", *size, data_size);
+
+    memset(data_size, 0, sizeof(data_size));
+    snprintf(data_size, sizeof(data_size), "0x%0.2x%1.2x%0.2x",
+            body.tag.timestamp[0], body.tag.timestamp[1], body.tag.timestamp[2]);
+
+    p= data_size;
+    if (body.tag.tagtype == 0x09)
+    fprintf(stdout, "timestamp = [%lu]\n", strtoul(p, NULL, 16));
 
     return body.tag.tagtype;
 }
@@ -438,10 +459,8 @@ int do_tag_onMetaData(int fd, int size)
     unsigned char *p = NULL;
 
     unsigned char *onMetaData = malloc(size);
-    fprintf(stdout, "size = [%d]\n", size);
     memset(onMetaData, 0, size);
     ret = read(fd, onMetaData, size);
-    fprintf(stdout, "ret = [%d]\n", ret);
 
     int fuck = open("./xxx.dat", O_RDWR);
     write(fuck, onMetaData, ret);
@@ -513,9 +532,11 @@ int do_tag_video(int fd, int size)
 
     memset(video_data, 0, size);
 
-    ret = read(fd, video_data, size);
-    fprintf(stdout, "read = [%d] bytes\n", ret);
     p = video_data;
+    while ((ret = read(fd, video_data, size)) != 0) {
+    fprintf(stdout, "video read = [%d] size = [%d]bytes\n", ret, size);
+        size -= ret;
+    }
 
     memset(&video_header, 0, sizeof(video_header));
     while(p)
@@ -552,13 +573,17 @@ int do_tag_video(int fd, int size)
 int do_tag_audio(int fd, int size)
 {
     int ret = 0;
-    unsigned char *p = NULL;
     unsigned char *audio_data = malloc(size);
 
     memset(audio_data, 0, size);
 
-    ret = read(fd, audio_data, size);
-    fprintf(stdout, "read = [%d] bytes\n", ret);
+    while ((ret = read(fd, audio_data, size)) > 0) {
+        size -= ret;
+        if (size == 0) {
+            break;
+        }
+        fprintf(stdout, "audio read = [%d] bytes\n", ret);
+    }
 
     return 0;
 }
@@ -576,7 +601,6 @@ int dump_flv_info(char *filename)
     int ret = 0;
     unsigned long size = 0;
     unsigned char PreviousTagSize[4];
-
     fd = open(filename, O_RDONLY);
     if (fd < 0) {
         fprintf(stdout, "Can not open the file [%s]\n", filename);
@@ -587,7 +611,6 @@ int dump_flv_info(char *filename)
     flv_header_parse(fd);
     while ((ret = read(fd, PreviousTagSize, sizeof(PreviousTagSize))) != 0) {
         tag_type = flv_do_tag(fd, &size);
-        fprintf(stdout, "type = [%x]\n", tag_type);
         switch(tag_type) {
         case TAG_TYPE_SCRIPTDATA:
             fprintf(stdout, "data_size = [%lu]\n", size);
@@ -604,6 +627,8 @@ int dump_flv_info(char *filename)
             do_tag_audio(fd, size);
             break;
         }
+        memset(PreviousTagSize, 0, sizeof(PreviousTagSize));
+        fprintf(stdout, "=================================\n");
     }
     return 0;
 }
