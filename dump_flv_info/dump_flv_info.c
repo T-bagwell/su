@@ -115,6 +115,9 @@ struct video_key_value {
     char *desc;
 };
 
+static unsigned long g_video_timestamp = 0;
+static unsigned long g_counter = 0;
+
 /**
  * Reinterpret a 64-bit integer as a double.
  */
@@ -245,8 +248,14 @@ int flv_do_tag(int fd, unsigned long *size)
             body.tag.timestamp[0], body.tag.timestamp[1], body.tag.timestamp[2]);
 
     p= data_size;
-    if (body.tag.tagtype == 0x09)
-    fprintf(stdout, "timestamp = [%lu]\n", strtoul(p, NULL, 16));
+    if (body.tag.tagtype == 0x09) {
+        if (strtoul(p, NULL, 16) < g_video_timestamp) {
+            fprintf(stdout, "time backwards value = [%lu]\n", strtoul(p, NULL, 16) - g_video_timestamp);
+            g_counter++;
+        }
+    }
+    g_video_timestamp = strtoul(p, NULL, 16) ;
+    fprintf(stdout, "timestamp = [%lu] Type = [%s]\n", strtoul(p, NULL, 16), body.tag.tagtype == 0x09 ? "Video": "Audio");
 
     return body.tag.tagtype;
 }
@@ -652,5 +661,6 @@ int main(int argc, char *argv[])
     filename = argv[1];
 
     dump_flv_info(filename);
+    fprintf(stderr, "value backwards counter = [%lu]\n", g_counter);
     return 0;
 }
