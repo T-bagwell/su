@@ -1,0 +1,4 @@
+run the application command:
+./push_stream -f ./list.txt -s rtmp://192.168.8.234/live?vhost=dev/lq
+
+if you want modify the file list, you can edit the list.txt file
