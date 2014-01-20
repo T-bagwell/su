@@ -1,0 +1,6 @@
+CC  =gcc
+LD  =ld
+AS  =as
+
+CFLAGS  += -Wall -Werror -O2 -g -I../include -I./include
+TOPDIR=$(shell pwd)
