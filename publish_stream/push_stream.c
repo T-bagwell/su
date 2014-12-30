@@ -51,10 +51,9 @@ int main(int argc, char *argv[])
             buffer[len - 1] = '\0';
             memset(command, 0, sizeof(command));
             snprintf(command, sizeof(command),
-                     "ffmpeg -re -i %s -threads 1 -vcodec libx264 -r:v 25 -b:v 1200k "
-                     " -preset superfast -vprofile main -vlevel 3.0 "
-                     "-acodec libfaac -ar 44100 -ab 128k -f flv -s 720x576"
-                     " -mpv_flags strict_gop %s", buffer, server_name);
+                     "ffmpeg -re -i %s -strict -2 -vcodec libx264 -b:v 800k"
+                     " -acodec aac -s 768x326 -f flv"
+                     " -mpv_flags strict_gop -rtmp_live any %s", buffer, server_name);
             fprintf(stdout, "command = [%s]\n", command);
             system(command);
             memset(buffer, 0, sizeof(buffer));
