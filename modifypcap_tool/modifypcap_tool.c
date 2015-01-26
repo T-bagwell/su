@@ -12,7 +12,7 @@ int parser_ipaddr_to_int(unsigned char *ipaddr, unsigned char *val1, unsigned ch
     unsigned char tmp_ipaddr[4];
     int i = 0;
     int j = 0;
-    
+
     while (p) {
         memset(tmp_ipaddr, 0, sizeof(tmp_ipaddr));
         while (*p != '.' && *p != '\0') {
@@ -55,6 +55,11 @@ int main(int argc, char *argv[])
     int port_in = 0;
     int port_out = 0;
     int modify_flag = 0;
+
+    if (argc < 4) {
+        fprintf(stderr, "./modifypcap_tool <source file> <dest file> <dest ip> <before port> <after port>\n");
+        exit(1);
+    }
 
     memset(buffer, 0, sizeof(buffer));
 
