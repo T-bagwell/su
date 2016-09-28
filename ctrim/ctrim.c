@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 
+
 char *ctrim(char *str)
 {
     char *p = str;

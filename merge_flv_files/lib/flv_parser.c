@@ -301,9 +301,9 @@ int flv_do_tag(int fd, unsigned long *size, tag_t *tag)
     p = (char *)tag;
 
     g_timestamp_int += 15;
-    tag->timestamp[0] = (g_timestamp_int & 0x00FF0000) >> 16;
-    tag->timestamp[1] = (g_timestamp_int & 0x0000FF00) >> 8;
-    tag->timestamp[2] = (g_timestamp_int & 0x000000FF);
+//    tag->timestamp[0] = (g_timestamp_int & 0x00FF0000) >> 16;
+//    tag->timestamp[1] = (g_timestamp_int & 0x0000FF00) >> 8;
+//    tag->timestamp[2] = (g_timestamp_int & 0x000000FF);
 
     fprintf(stderr, "body . type = [%x]\n", *p);
     fprintf(stderr, "size = %lu tag->type = [%x]"
