@@ -5,6 +5,7 @@
 
 char *ctrim(char *str)
 {
+
     char *p = str;
 
     while (p) {

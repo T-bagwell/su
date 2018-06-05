@@ -63,7 +63,7 @@ int do_video_seek(int fd)
         case TAG_TYPE_SCRIPTDATA:
             fprintf(stderr, "Type = [MetaData]\n");
             ret = read(fd, buffer, size);
-            do_tag_onMetaData(fd, size, buffer);
+           // do_tag_onMetaData(fd, size, buffer);
             if (g_have_metadata == FALSE) {
                 fwrite(&tag, sizeof(tag), 1, g_output_file);
                 fwrite(buffer, size, 1, g_output_file);
@@ -79,7 +79,6 @@ int do_video_seek(int fd)
             if (ret <= 0) {
                 break;
             }
-
             if (get_video_frame_type(buffer[0]) == FRAME_TYPE_KEYFRAME) {
                 write_first_tag = TRUE;
             }
@@ -105,7 +104,7 @@ int do_video_seek(int fd)
             break;
 
         case TAG_TYPE_AUDIO:
-            if (write_first_tag == FALSE) {
+            if (1 /* write_first_tag == FALSE */) {
                 ret = read(fd, buffer, size);
                 read(fd, PreviousTagSize, sizeof(PreviousTagSize));
                 goto skip_write_previous_tag_size;

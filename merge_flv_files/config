@@ -2,5 +2,5 @@ CC  =gcc
 LD  =ld
 AS  =as
 
-CFLAGS  += -Wall -Werror -O2 -g -I../include -I./include
+CFLAGS  += -Wall -Werror,-Wnon-literal-null-conversion -O2 -g -I../include -I./include
 TOPDIR=$(shell pwd)
