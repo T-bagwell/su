@@ -26,6 +26,16 @@ struct tag_context {
     struct tag_context *next;
 };
 
+struct ID3v2_header {
+    uint8_t fid[4];
+    uint32_t version;
+    uint8_t flags_a;
+    uint8_t flags_b;
+    uint8_t flags_c;
+    uint8_t flags_d;
+    uint32_t size;
+};
+
 struct MovieHeaderBox {
     uint64_t creation_time;
     uint64_t modification_time;
@@ -249,6 +259,24 @@ struct TrackFragmentBaseMediaDecodeTimeBox {
     uint64_t baseMediaDecodeTime;
 };
 
+struct ID3v2Box {
+    uint32_t pad;
+    uint32_t language;
+    uint8_t *ID3v2data;
+};
+
+struct SPS_NAL {
+    int profile_idc;
+    int constraint_set0_flag;
+    int constraint_set1_flag;
+    int constraint_set2_flag;
+    int constraint_set3_flag;
+    int constraint_set4_flag;
+    int constraint_set5_flag;
+    int reserved_zero_2bits;
+    int level_idc;
+};
+
 struct tag_info tag_table[] = {
     { MKTAG('f','t','y','p'), "ftyp"},
     { MKTAG('m','p','4','2'), "mp42"},
@@ -331,6 +359,257 @@ uint64_t get_long_from_buf(unsigned char *buf)
 
     return ret;
 }
+
+int parse_ID3v2_header(unsigned char *in)
+{
+    printf("in parse_ID3v2_header\n");
+    struct ID3v2_header *id32h;
+    unsigned char frame_id[5];
+    uint32_t frame_size = 0;
+    uint32_t frame_flags = 0;
+    uint8_t *frame_data = NULL;
+    unsigned char *p = in;
+
+    /*
+     *The first part of the ID3v2 tag is the 10 byte tag header, laid out
+   as follows:
+
+     ID3v2/file identifier      "ID3"
+     ID3v2 version              $04 00
+     ID3v2 flags                %abcd0000
+     ID3v2 size             4 * %0xxxxxxx
+
+   The first three bytes of the tag are always "ID3", to indicate that
+   this is an ID3v2 tag, directly followed by the two version bytes. The
+   first byte of ID3v2 version is its major version, while the second
+   byte is its revision number. In this case this is ID3v2.4.0. All
+   revisions are backwards compatible while major versions are not. If
+   software with ID3v2.4.0 and below support should encounter version
+   five or higher it should simply ignore the whole tag. Version or
+   revision will never be $FF.
+     *
+     * */
+    id32h = malloc(sizeof(struct ID3v2_header));
+    if (!id32h)
+        return -ENOMEM;
+
+    /* ID3v2/file identifier "ID3" */
+    strncpy((char *)id32h->fid, (char *)p, 3);
+    p += 3;
+
+    /* ID3v2 version $04 00 */
+    id32h->version = get_short_from_buf(p);
+    p += 2;
+
+    /* ID3v2 flags %abcd0000 */
+    id32h->flags_a = (*p & 0x80) >> 7;
+    id32h->flags_b = (*p & 0x40) >> 6;
+    id32h->flags_c = (*p & 0x20) >> 5;
+    id32h->flags_d = (*p & 0x10) >> 4;
+    p++;
+
+    /* ID3v2 size 4 * %0xxxxxxx */
+    id32h->size = get_int_from_buf(p);
+    p += 4;
+
+    printf("id32h->fid = [%s], "
+           "id32h->version = 0x%04x, "
+           "id32h->size = [0x%08x]\n",
+           id32h->fid,
+           id32h->version,
+           id32h->size);
+    /*
+     *  a - Unsynchronisation
+     *      Bit 7 in the 'ID3v2 flags' indicates whether or not
+     *      unsynchronisation is applied on all frames (see section 6.1 for
+     *      details); a set bit indicates usage.
+     * */
+    if (id32h->flags_a) {
+        printf("id32h->flags_a\n");
+    }
+
+    /*
+     * b - Extended header
+     *      The second bit (bit 6) indicates whether or not the header is
+     *      followed by an extended header. The extended header is described in
+     *      section 3.2. A set bit indicates the presence of an extended header.
+     * */
+    if (id32h->flags_b) {
+        printf("id32h->flags_b\n");
+    }
+
+    /*
+     * c - Experimental indicator
+     *      The third bit (bit 5) is used as an 'experimental indicator'. This
+     *      flag SHALL always be set when the tag is in an experimental stage.
+     * */
+    if (id32h->flags_c) {
+        printf("id32h->flags_c\n");
+    }
+
+    /*
+     * d - Footer present
+     *      Bit 4 indicates that a footer (section 3.4) is present at the very
+     *      end of the tag. A set bit indicates the presence of a footer.
+     **/
+    if (id32h->flags_d) {
+        printf("id32h->flags_d\n");
+    }
+
+    /* 4.   ID3v2 frame overview  */
+    /*
+     *  All ID3v2 frames consists of one frame header followed by one or more
+     *  fields containing the actual information. The header is always 10
+     *  bytes and laid out as follows:
+     *      Frame ID      $xx xx xx xx  (four characters)
+     *      Size      4 * %0xxxxxxx
+     *      Flags         $xx xx
+     *
+     *  The frame ID is made out of the characters capital A-Z and 0-9.
+     *  Identifiers beginning with "X", "Y" and "Z" are for experimental
+     *  frames and free for everyone to use, without the need to set the
+     *  experimental bit in the tag header. Bear in mind that someone else
+     *  might have used the same identifier as you. All other identifiers are
+     *  either used or reserved for future use.
+     *
+     *  The frame ID is followed by a size descriptor containing the size of
+     *  the data in the final frame, after encryption, compression and
+     *  unsynchronisation. The size is excluding the frame header ('total
+     *  frame size' - 10 bytes) and stored as a 32 bit synchsafe integer.
+     *
+     * In the frame header the size descriptor is followed by two flag
+     * bytes. These flags are described in section 4.1.
+     *
+     * There is no fixed order of the frames' appearance in the tag,
+     * although it is desired that the frames are arranged in order of
+     * significance concerning the recognition of the file. An example of
+     * such order: UFID, TIT2, MCDI, TRCK ...
+     *
+     * A tag MUST contain at least one frame. A frame must be at least 1
+     * byte big, excluding the header.
+     *
+     * If nothing else is said, strings, including numeric strings and URLs
+     * [URL], are represented as ISO-8859-1 [ISO-8859-1] characters in the
+     * range $20 - $FF. Such strings are represented in frame descriptions
+     * as <text string>, or <full text string> if newlines are allowed. If
+     * nothing else is said newline character is forbidden. In ISO-8859-1 a
+     * newline is represented, when allowed, with $0A only.
+     *
+     * Frames that allow different types of text encoding contains a text
+     * encoding description byte. Possible encodings:
+     *
+     * $00   ISO-8859-1 [ISO-8859-1]. Terminated with $00.
+     * $01   UTF-16 [UTF-16] encoded Unicode [UNICODE] with BOM. All
+     *      strings in the same frame SHALL have the same byteorder.
+     *      Terminated with $00 00.
+     * $02   UTF-16BE [UTF-16] encoded Unicode [UNICODE] without BOM.
+     *      Terminated with $00 00.
+     * $03   UTF-8 [UTF-8] encoded Unicode [UNICODE]. Terminated with $00.
+     *
+     * Strings dependent on encoding are represented in frame descriptions
+     * as <text string according to encoding>, or <full text string
+     * according to encoding> if newlines are allowed. Any empty strings of
+     * type $01 which are NULL-terminated may have the Unicode BOM followed
+     * by a Unicode NULL ($FF FE 00 00 or $FE FF 00 00).
+     *
+     * The timestamp fields are based on a subset of ISO 8601. When being as
+     * precise as possible the format of a time string is
+     * yyyy-MM-ddTHH:mm:ss (year, "-", month, "-", day, "T", hour (out of
+     * 24), ":", minutes, ":", seconds), but the precision may be reduced by
+     * removing as many time indicators as wanted. Hence valid timestamps
+     * are yyyy, yyyy-MM, yyyy-MM-dd, yyyy-MM-ddTHH, yyyy-MM-ddTHH:mm and
+     * yyyy-MM-ddTHH:mm:ss. All time stamps are UTC. For durations, use
+     * the slash character as described in 8601, and for multiple non-
+     * contiguous dates, use multiple strings, if allowed by the frame
+     * definition.
+     *
+     * The three byte language field, present in several frames, is used to
+     * describe the language of the frame's content, according to ISO-639-2
+     * [ISO-639-2]. The language should be represented in lower case. If the
+     * language is not known the string "XXX" should be used.
+     *
+     * All URLs [URL] MAY be relative, e.g. "picture.png", "../doc.txt".
+     *
+     * If a frame is longer than it should be, e.g. having more fields than
+     * specified in this document, that indicates that additions to the
+     * frame have been made in a later version of the ID3v2 standard. This
+     * is reflected by the revision number in the header of the tag.
+    *
+    * */
+    /* Frame ID      $xx xx xx xx  (four characters) */
+    memset(frame_id, 0, sizeof(frame_id));
+    strncpy((char *)frame_id, (char *)p, 4);
+    p += 4;
+    /* Size      4 * %0xxxxxxx */
+    frame_size = get_int_from_buf(p);
+    p += 4;
+    /* Flags         $xx xx */
+    frame_flags = get_short_from_buf(p);
+    p += 2;
+
+    printf("frame_id = [%s], "
+           "frame_size = [0x%08x], "
+           "frame_flags = [0x%04x]\n",
+           frame_id,
+           frame_size,
+           frame_flags);
+    frame_data = malloc(frame_size);
+    if (!frame_data)
+        return -ENOMEM;
+
+    int i = 0;
+    uint8_t *cur = p;
+    while(*p != '\0') {
+        frame_data[i] = *p++;
+        i++;
+    }
+
+    p++;
+    printf("frame_data = [%s]\n", frame_data);
+    printf("end tag = [%s]\n", p);
+
+    return 0;
+}
+
+int parse_ID32(int fd, int id32_size)
+{
+    printf("\t\t\tin ID32\n");
+    struct ID3v2Box *id32;
+    int size = id32_size - 4; /* aligned(8) class ID3v2Box extends FullBox('ID32', version=0, 0) */
+    char ext_version_flags[5];
+    unsigned int tag_name = 0;
+    unsigned char *buf = malloc(id32_size);
+    unsigned char *p = NULL;
+    int i = 0;
+    if (!buf)
+        return -ENOMEM;
+
+    id32 = malloc(sizeof(struct ID3v2Box));
+    if (!id32)
+        return -ENOMEM;
+
+    /* read version and flags of the extends */
+    read(fd, ext_version_flags, 4);
+
+    /* read id32 context */
+    read(fd, buf, size);
+    p = buf;
+
+    id32->pad = (*p & 0x80) >> 7;
+    id32->language = get_short_from_buf(p) & 0x7FFF;
+    p += 2;
+    id32->ID3v2data = p;
+
+    printf("id32->pad = [%d]\n", id32->pad);
+    printf("id32->language = [%d]\n", id32->language);
+
+    parse_ID3v2_header(p);
+
+    printf("ID32 id32_size = [0x%02x]\n", id32_size);
+
+    return 0;
+}
+
 
 int parse_mvhd(int fd, int mvhd_size)
 {
@@ -785,6 +1064,9 @@ int parse_hdlr(int fd, int hdlr_size, int *handler_type)
             printf("auxv");
             *handler_type = MKTAG('a','u','x','v');
             break;
+        case MKTAG('I','D','3','2'):
+            *handler_type = MKTAG('I','D','3','2');
+            break;
         default:
             printf("unknown handler type\n");
             break;
@@ -793,14 +1075,15 @@ int parse_hdlr(int fd, int hdlr_size, int *handler_type)
     /* const unsigned int(32)[3] reserved = 0; */
     p += 12;
 
-    hdlr->name = malloc(size - (p - buf));
-    if (!hdlr->name) {
-        return -ENOMEM;
+    if (size - (p - buf) > 0) {
+        hdlr->name = malloc(size - (p - buf));
+        if (!hdlr->name) {
+            return -ENOMEM;
+        }
+        strncpy(hdlr->name, (char *)p, size - (p - buf));
+        p += size - (p - buf);
+        printf("\t\t\thdlr->name = [%s]\n", hdlr->name);
     }
-    strncpy(hdlr->name, (char *)p, size - (p - buf));
-    p += size - (p - buf);
-
-    printf("\t\t\thdlr->name = [%s]\n", hdlr->name);
     if (p - buf != size)
         return -EINVAL;
     return 0;
@@ -1284,16 +1567,17 @@ int parse_tenc(unsigned char *in, int tenc_size)
           tenc->default_constant_IV_size);
 
     printf("\n\t\t\t\t\t\t\t\t\t");
-    printf("tenc->defult_KID ");
+    printf("tenc->defult_KID [");
     for (i = 0; i < 16; i++) {
-        printf(" [0x%02x] ", tenc->defult_KID[i]);
+        printf(" 0x%02x ", tenc->defult_KID[i]);
     }
-
+    printf("]");
     printf("\n\t\t\t\t\t\t\t\t\t");
-    printf("tenc->default_constant_IV ");
+    printf("tenc->default_constant_IV [");
     for (i = 0; i < tenc->default_constant_IV_size; i++) {
-        printf(" [0x%02x] ", tenc->default_constant_IV[i]);
+        printf(" 0x%02x ", tenc->default_constant_IV[i]);
     }
+    printf("]");
     printf("\n");
     printf("\t\t\t\t\t\t\t\t\t");
     printf("tenc size = [%ld] size = [%d]\n", p - in, tenc_size);
@@ -1392,6 +1676,17 @@ int parse_sinf(unsigned char *buf, int size)
     return 0;
 }
 
+int parse_SPS_NALU(unsigned char *in, int sps_size)
+{
+    printf("in SPS NALU\n");
+    unsigned char *p = in;
+
+    printf("SPS p = [%x]\n", p[0]);
+    
+
+    return 0;
+}
+
 int parse_avcC(unsigned char *in, int avcc_size)
 {
     printf("in avcC\n");
@@ -1486,6 +1781,8 @@ int parse_avcC(unsigned char *in, int avcc_size)
         for (j = 0; j < avcc->sequenceParameterSetLength; j++) {
             printf("0x%02x ", avcc->sequenceParameterSetNALUnit[j]);
         }
+
+        parse_SPS_NALU(avcc->sequenceParameterSetNALUnit, avcc->sequenceParameterSetLength);
         printf("]");
     }
     printf("\n\t\t\t\t\t\t\t");
@@ -2258,6 +2555,51 @@ int parse_mdia(int fd, int mdia_size)
     return 0;
 }
 
+int parse_meta(int fd, int meta_size)
+{
+    int size = meta_size;
+    int tag_size = 0;
+    int32_t handler_type = 0;
+    unsigned char buf[5];
+    unsigned int tag_name = 0;
+    char ext_version_flags[5];
+
+    printf("in meta size = %d\n", meta_size);
+
+
+    read(fd, ext_version_flags, 4);
+    while(size > 0) {
+        tag_size = get_size(fd);
+        if (tag_size <= 0) {
+            break;
+        }
+        size -= tag_size;
+        memset(buf, 0, sizeof(buf));
+        get_tag_from_fd(fd, buf);
+        tag_name = get_int_from_buf(buf);
+        printf("\t");
+        switch (tag_name) {
+            case MKTAG('I','D','3','2'):
+                parse_ID32(fd, tag_size - 8);
+                break;
+            case MKTAG('h','d','l','r'):
+                parse_hdlr(fd, tag_size - 8, &handler_type);
+                break;
+            case MKTAG('d','i','n','f'):
+                parse_dinf(fd, tag_size - 8);
+                break;
+            case MKTAG('t','r','a','k'):
+                parse_trak(fd, tag_size - 8);
+                break;
+            default:
+                printf("buf = [%s]\n", buf);
+                break;
+        }
+    }
+
+    return 0;
+}
+
 /* This is a container box for a single track of a presentation. A presentation consists of one or more tracks.
  * Each track is independent of the other tracks in the presentation and carries its own temporal and spatial information.
  * Each track will contain its associated Media Box. Tracks are used for two purposes:
@@ -2400,6 +2742,9 @@ void parse_moov(int fd, int moov_size)
         switch (tag_name) {
             case MKTAG('m','v','h','d'):
                 parse_mvhd(fd, tag_size - 8);
+                break;
+            case MKTAG('m','e','t','a'):
+                parse_meta(fd, tag_size - 8);
                 break;
             case MKTAG('t','r','a','k'):
                 parse_trak(fd, tag_size - 8);
@@ -2620,9 +2965,9 @@ int parse_trun(int fd, int trun_size)
             p += 4;
             printf("\t\t\t\ttrun->trunss[i].sample_composition_time_offset = [%d]\n", trun->trunss[i].sample_composition_time_offset);
         }
-        printf("\n");
     }
 
+    printf("\n");
 
     return 0;
 }
