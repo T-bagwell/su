@@ -277,6 +277,34 @@ struct SPS_NAL {
     int level_idc;
 };
 
+struct SampleAuxiliaryInformationSizesBox {
+    uint32_t aux_info_type;
+    uint32_t aux_info_type_parameter;
+    uint8_t default_sample_info_size;
+    uint32_t sample_count;
+    uint8_t *sample_info_size;
+};
+
+struct SampleAuxiliaryInformationOffsetsBox {
+    uint32_t aux_info_type;
+    uint32_t aux_info_type_parameter;
+    uint32_t entry_count;
+    uint64_t *offset;
+};
+
+struct subSampleEncryptionBoxSamples {
+    uint16_t BytesOfClearData;
+    uint32_t BytesOfProtectedData;
+};
+struct SampleEncryptionBoxSamples {
+    uint64_t InitializationVector;
+    uint16_t subsample_count;
+    struct subSampleEncryptionBoxSamples subsencs[10240];
+};
+struct SampleEncryptionBox {
+    uint32_t sample_count;
+    struct SampleEncryptionBoxSamples sencsamples[10240];
+};
 struct tag_info tag_table[] = {
     { MKTAG('f','t','y','p'), "ftyp"},
     { MKTAG('m','p','4','2'), "mp42"},
@@ -1340,6 +1368,20 @@ int parse_dinf(int fd, int dinf_size)
     return 0;
 }
 
+int parse_esds(unsigned char *in, int esds_size)
+{
+    printf("in esds\n");
+    unsigned char *p = in;
+    int size = esds_size - 4; /* class ESDBox extends Box(‘esds’) */
+
+    if (!in)
+        return -ENOMEM;
+
+    printf("size = [%ld] esds_size = [%d]\n", p - in, esds_size);
+    return 0;
+}
+
+
 int parse_clap(unsigned char *in, int clap_size)
 {
     printf("in colr\n");
@@ -1665,6 +1707,10 @@ int parse_sinf(unsigned char *buf, int size)
                 parse_schi(p, tmp_size - 8);
                 p += tmp_size - 8;
                 break;
+            case MKTAG('m','p','4','a'):
+                parse_mp4a(p, tmp_size - 8);
+                p += tmp_size - 8;
+                break;
             default:
                 printf("unkown, [%s]\n", tag_buf);
                 break;
@@ -1675,6 +1721,16 @@ int parse_sinf(unsigned char *buf, int size)
 
     return 0;
 }
+
+int parse_mp4a(unsigned char *in, int mp4a_size)
+{
+    printf("in mp4a mp4_size = [%d]\n", mp4a_size);
+    unsigned char *p = in;
+
+
+    return 0;
+}
+
 
 int parse_SPS_NALU(unsigned char *in, int sps_size)
 {
@@ -1781,9 +1837,8 @@ int parse_avcC(unsigned char *in, int avcc_size)
         for (j = 0; j < avcc->sequenceParameterSetLength; j++) {
             printf("0x%02x ", avcc->sequenceParameterSetNALUnit[j]);
         }
-
-        parse_SPS_NALU(avcc->sequenceParameterSetNALUnit, avcc->sequenceParameterSetLength);
         printf("]");
+        parse_SPS_NALU(avcc->sequenceParameterSetNALUnit, avcc->sequenceParameterSetLength);
     }
     printf("\n\t\t\t\t\t\t\t");
     for (i = 0; i < avcc->numOfPictureParameterSets; i++) {
@@ -1817,9 +1872,12 @@ int parse_chrm(unsigned char *buf, int size)
 }
 
 
-int parse_encv(unsigned char *buf, int size, struct VisualSampleEntry *vse)
+int parse_encv(unsigned char *buf, int size, struct VisualSampleEntry *vse, int tagid)
 {
-    printf("in encv\n");
+    if (tagid == MKTAG('e','n','c','v'))
+        printf("in encv\n");
+    else
+        printf("in avc1\n");
     unsigned char *p = buf;
     /* const unsigned int(8)[6] reserved = 0; */
     p += 6;
@@ -1919,8 +1977,9 @@ int parse_encv(unsigned char *buf, int size, struct VisualSampleEntry *vse)
 
 int parse_enca(unsigned char *buf, int size, struct AudioSampleEntry *ase)
 {
-    printf("in enca\n");
+    printf("in enca size = [%d]\n", size);
     unsigned char *p = buf;
+    int esds_size = 0;
     /* const unsigned int(8)[6] reserved = 0; */
     p += 6;
     /* unsigned int(16) data_reference_index; */
@@ -1940,7 +1999,7 @@ int parse_enca(unsigned char *buf, int size, struct AudioSampleEntry *ase)
     /* const unsigned int(16) reserved = 0 ; */
     p += 4;
     /* template unsigned int(32) samplerate = { default samplerate of media}<<16; */
-    ase->samplerate = get_int_from_buf(p) >> 16;
+    ase->samplerate = get_short_from_buf(p);
     p += 4;
     printf("\t\t\t\t\t\t");
     printf("ase->channelcount= [%d]\n\t\t\t\t\t\t"
@@ -1950,6 +2009,40 @@ int parse_enca(unsigned char *buf, int size, struct AudioSampleEntry *ase)
            ase->samplesize,
            ase->samplerate);
 
+
+    int context_size = size - (p - buf);
+    int tmp_size = 0;
+    unsigned char tmpbuf[5];
+    uint32_t tag_name = 0;
+
+    while (context_size > 0) {
+        tmp_size = get_size_from_buf(p);
+        p += 4;
+        get_tag_from_buf(p, tmpbuf);
+        p += 4;
+        tag_name = get_int_from_buf(tmpbuf);
+        printf("\t\t\t\t\t\t");
+        switch (tag_name) {
+            case MKTAG('e','s','d','s'):
+                parse_esds(p, tmp_size - 8);
+                break;
+            case MKTAG('s','i','n','f'):
+                parse_sinf(p, tmp_size - 8);
+                break;
+            case MKTAG('m','p','4','a'):
+                parse_mp4a(p, tmp_size - 8);
+                break;
+            default:
+                printf("unkown vide enca, [%s]\n", tmpbuf);
+                break;
+        }
+        p += tmp_size;
+        p -= 8;
+        context_size -= tmp_size;
+    }
+
+
+
     printf("\t\t\t\t\t\tenca size == [%ld]\n", p - buf);
     return p - buf;
 }
@@ -1957,7 +2050,7 @@ int parse_enca(unsigned char *buf, int size, struct AudioSampleEntry *ase)
 
 int parse_stsd(int fd, int stsd_size, int handler_type)
 {
-    printf("in stsd\n");
+    printf("in stsd size = [%d]\n", stsd_size);
 
     struct SampleDescriptionBox *stsd = NULL;
     struct VisualSampleEntry *vse = NULL;
@@ -1989,6 +2082,7 @@ int parse_stsd(int fd, int stsd_size, int handler_type)
     /* unsigned int(32) entry_count; */
     stsd->entry_count = get_int_from_buf(p);
     p += 4;
+    printf("stsd->entry_count = [%d]\n", stsd->entry_count);
 
     for (i = 0; i < stsd->entry_count; i++) {
         printf("\t\t\t\t\t");
@@ -2010,10 +2104,13 @@ int parse_stsd(int fd, int stsd_size, int handler_type)
                 tag_name = get_int_from_buf(codingname);
                 switch (tag_name) {
                     case MKTAG('e','n','c','v'):
-                        parse_encv(p, codingname_size - 8, vse);
+                        parse_encv(p, codingname_size - 8, vse, tag_name);
+                        break;
+                    case MKTAG('a','v','c','1'):
+                        parse_encv(p, codingname_size - 8, vse, tag_name);
                         break;
                     default:
-                        printf("unkown vide encv\n");
+                        printf("unkown vide, [%s]\n", codingname);
                         break;
                 }
                 break;
@@ -2036,8 +2133,14 @@ int parse_stsd(int fd, int stsd_size, int handler_type)
                     case MKTAG('e','n','c','a'):
                         parse_enca(p, codingname_size - 8, ase);
                         break;
+                    case MKTAG('e','s','d','s'):
+                        parse_esds(p, codingname_size - 8);
+                        break;
+                    case MKTAG('m','p','4','a'):
+                        parse_mp4a(p, codingname_size - 8);
+                        break;
                     default:
-                        printf("unkown soun enca\n");
+                        printf("unkown soun codingname = [%s] [%x %x]\n", codingname, codingname[0], codingname[1]);
                         break;
                 }
 
@@ -2055,10 +2158,15 @@ int parse_stsd(int fd, int stsd_size, int handler_type)
             case MKTAG('m','e','t','a'):
                 printf("stsd meta\n");
                 break;
+            case MKTAG('e','s','d','s'):
+                printf("stsd esds\n");
+                //                parse_esds(p, codingname_size - 8);
+                break;
             default:
                 printf("unkown stsd handler_type\n");
                 break;
         }
+        p += codingname_size - 8;
     }
 
 
@@ -2366,25 +2474,147 @@ int parse_subs(int fd, int size)
     return 0;
 }
 
-int parse_saiz(int fd, int size)
+int parse_saiz(int fd, int saiz_size)
 {
     printf("in saiz\n");
-    unsigned char *buf1 = malloc(size);
-    if (!buf1)
+    struct SampleAuxiliaryInformationSizesBox *saiz;;
+    int size = saiz_size - 4;  /* aligned(8) class SampleAuxiliaryInformationSizesBox extends FullBox(‘saiz’, version = 0, flags) */
+    char ext_version_flags[5];
+    unsigned char *buf = malloc(saiz_size);
+    unsigned char *p = buf;
+    int i = 0;
+    if (!buf)
         return -ENOMEM;
-    read(fd, buf1, size);
+
+    saiz = malloc(sizeof(struct SampleAuxiliaryInformationSizesBox));
+    /* read version and flags of the extends */
+    read(fd, ext_version_flags, 4);
+    read(fd, buf, size);
+
+    if (ext_version_flags[1] == 0 && ext_version_flags[2] == 0 && ext_version_flags[3] == 1) {
+        saiz->aux_info_type = get_int_from_buf(p);
+        p += 4;
+        saiz->aux_info_type_parameter = get_int_from_buf(p);
+        p += 4;
+    }
+
+    saiz->default_sample_info_size = *p;
+    p++;
+
+    saiz->sample_count = get_int_from_buf(p);
+    p += 4;
+
+    printf("\t\t\t\t\tsaiz->default_sample_info_size = [%d] saiz->sample_count = [%d]\n", saiz->default_sample_info_size, saiz->sample_count);
+    if (saiz->default_sample_info_size == 0) {
+        saiz->sample_info_size = malloc(saiz->sample_count);
+        memcpy(saiz->sample_info_size, p, saiz->sample_count);
+        for (i = 0; i < saiz->sample_count; i++) {
+            printf("\t\t\t\t\tsaiz->sample_info_size = [%d]\n", saiz->sample_info_size[i]);
+        }
+    }
+
     return 0;
 }
 
-int parse_saio(int fd, int size)
+int parse_saio(int fd, int saio_size)
 {
     printf("in saio\n");
-    unsigned char *buf1 = malloc(size);
-    if (!buf1)
+    struct SampleAuxiliaryInformationOffsetsBox *saio;
+    int size = saio_size - 4;  /* aligned(8) class SampleAuxiliaryInformationOffsetsBox extends FullBox(‘saio’, version = 0, flags) */
+    char ext_version_flags[5];
+    unsigned char *buf = malloc(saio_size);
+    unsigned char *p = buf;
+    int i = 0;
+    if (!buf)
         return -ENOMEM;
-    read(fd, buf1, size);
+
+    saio = malloc(sizeof(struct SampleAuxiliaryInformationOffsetsBox));
+    /* read version and flags of the extends */
+    read(fd, ext_version_flags, 4);
+    read(fd, buf, size);
+
+    if (ext_version_flags[1] == 0 && ext_version_flags[2] == 0 && ext_version_flags[3] == 1) {
+        saio->aux_info_type = get_int_from_buf(p);
+        p += 4;
+        saio->aux_info_type_parameter = get_int_from_buf(p);
+        p += 4;
+    }
+
+    saio->entry_count = get_int_from_buf(p);
+    p += 4;
+
+    printf("\t\t\t\t\tsaio->entry_count = [%d]\n", saio->entry_count);
+    if (ext_version_flags[0] == 0) {
+        saio->offset = malloc(saio->entry_count * sizeof(int32_t));
+        for(i = 0; i < saio->entry_count; i ++) {
+            saio->offset[i] = get_int_from_buf(p);
+            p += 4;
+        }
+        for (i = 0; i < saio->entry_count; i++) {
+            printf("\t\t\t\t\tsaio->offset = [0x%08llx]\n", saio->offset[i]);
+        }
+    } else {
+        saio->offset = malloc(saio->entry_count * sizeof(int64_t));
+        for(i = 0; i < saio->entry_count; i ++) {
+            saio->offset[i] = get_long_from_buf(p);
+            p += 8;
+        }
+        for (i = 0; i < saio->entry_count; i++) {
+            printf("\t\t\t\t\tsaio->offset = [0x%08llx]\n", saio->offset[i]);
+        }
+    }
+
     return 0;
 }
+
+int parse_senc(int fd, int senc_size)
+{
+    printf("in senc\n");
+    struct SampleEncryptionBox *senc;
+    int size = senc_size - 4;  /* aligned(8) class SampleEncryptionBox extends FullBox(‘senc’, version = 0, flags) */
+    char ext_version_flags[5];
+    unsigned char *buf = malloc(senc_size);
+    unsigned char *p = buf;
+    int i = 0;
+    int j = 0;
+    if (!buf)
+        return -ENOMEM;
+
+    senc = malloc(sizeof(struct SampleEncryptionBox));
+    /* read version and flags of the extends */
+    read(fd, ext_version_flags, 4);
+    read(fd, buf, size);
+
+    senc->sample_count = get_int_from_buf(p);
+    p += 4;
+
+    printf("\t\t\tsenc->sample_count = [%2d]\n", senc->sample_count);
+    for (i = 0; i < senc->sample_count; i++) {
+        senc->sencsamples[i].InitializationVector = get_long_from_buf(p);
+        p += 8;
+        printf("\t\t\tsenc->sencsamples[%2d].InitializationVector = [0x%16llx]", i, senc->sencsamples[i].InitializationVector);
+        if (ext_version_flags[1] == 0 && ext_version_flags[2] == 0 && ext_version_flags[3] == 2) {
+            senc->sencsamples[i].subsample_count = get_short_from_buf(p);
+            p += 2;
+            printf("senc->sencsamples[%2d].subsample_count = [%d]\n", i, senc->sencsamples[i].subsample_count);
+            for (j = 0; j < senc->sencsamples[i].subsample_count; j++) {
+                senc->sencsamples[i].subsencs[j].BytesOfClearData = get_short_from_buf(p);
+                p += 2;
+                senc->sencsamples[i].subsencs[j].BytesOfProtectedData = get_int_from_buf(p);
+                p += 4;
+                printf("\t\t\tsenc->sencsamples[%2d].subsencs[%2d].BytesOfClearData = [0x%04d], "
+                       "senc->sencsamples[%2d].subsencs[%2d].BytesOfProtectedData = [0x%08d]\n",
+                       i, j,
+                       senc->sencsamples[i].subsencs[j].BytesOfClearData,
+                       i, j,
+                       senc->sencsamples[i].subsencs[j].BytesOfProtectedData);
+            }
+        }
+    }
+
+    return 0;
+}
+
 
 int parse_stbl(int fd, int stbl_size, int handler_type)
 {
@@ -3040,6 +3270,9 @@ int parse_traf(int fd, int traf_size)
                 break;
             case MKTAG('s','a','i','o'):
                 parse_saio(fd, tag_size - 8);
+                break;
+            case MKTAG('s','e','n','c'):
+                parse_senc(fd, tag_size - 8);
                 break;
             case MKTAG('t','f','d','t'):
                 parse_tfdt(fd, tag_size - 8);
