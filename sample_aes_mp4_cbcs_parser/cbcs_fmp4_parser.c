@@ -305,6 +305,38 @@ struct SampleEncryptionBox {
     uint32_t sample_count;
     struct SampleEncryptionBoxSamples sencsamples[10240];
 };
+
+/* defined in 14496-1 7.2.6.6 */
+struct profileLevelIndicationIndexDescriptor {
+    uint8_t profileLevelIndicationIndex;
+};
+struct DecoderSpecificInfo {
+};
+struct DecoderConfigDescriptor {
+    uint8_t objectTypeIndication;
+    uint8_t streamType;
+    uint8_t upStream;
+    uint8_t reserved;
+    uint32_t bufferSizeDB;
+    uint32_t maxBitrate;
+    uint32_t avgBitrate;
+    struct DecoderSpecificInfo decSpecificInfo[2];
+    struct profileLevelIndicationIndexDescriptor profileLevelIndicationIndexDescr[256];
+};
+
+/* defined in 14496-1 */
+struct ES_Descriptor {
+    uint16_t ES_ID;
+    uint8_t streamDependenceFlag;
+    uint8_t URL_Flag;
+    uint8_t OCRstreamFlag;
+    uint8_t streamPriority;
+    uint16_t dependsOn_ES_ID;
+    uint8_t URLlength;
+    uint8_t *URLstring;
+    uint16_t OCR_ES_Id;
+    
+};
 struct tag_info tag_table[] = {
     { MKTAG('f','t','y','p'), "ftyp"},
     { MKTAG('m','p','4','2'), "mp42"},
@@ -357,7 +389,7 @@ int get_tag_type(int fd)
     return buf[0] << 24 | buf[1] << 16 | buf[2] << 8 | buf[3];
 }
 
-int get_int_from_buf(unsigned char *buf)
+unsigned int get_int_from_buf(unsigned char *buf)
 {
     return buf[0] << 24 | buf[1] << 16 | buf[2] << 8 | buf[3];
 }
@@ -1726,6 +1758,42 @@ int parse_mp4a(unsigned char *in, int mp4a_size)
 {
     printf("in mp4a mp4_size = [%d]\n", mp4a_size);
     unsigned char *p = in;
+    uint32_t samplerate = 0;
+    int32_t tmp_size = 0;
+    unsigned char tmpbuf[5];
+    uint32_t tag_name = 0;
+
+    /* const unsigned int(8)[6] reserved = 0;
+     * unsigned int(16) data_reference_index;*/
+    p += 8;
+
+    /* const unsigned int(32)[2] reserved = 0;
+     * template unsigned int(16) channelcount = 2;
+     * template unsigned int(16) samplesize = 16;
+     * unsigned int(16) pre_defined = 0;
+     * const unsigned int(16) reserved = 0 ;
+     * */
+    p += 8 + 2 + 2 + 2 + 2;
+
+    /* template unsigned int(32) samplerate = { default samplerate of media}<<16; } */
+    samplerate = get_int_from_buf(p) >> 16;
+    p += 4;
+    printf("samplerate = %u\n", samplerate);
+    tmp_size = get_size_from_buf(p);
+    p += 4;
+    get_tag_from_buf(p, tmpbuf);
+    p += 4;
+    tag_name = get_int_from_buf(tmpbuf);
+    printf("tag_name = [%x]\n", tag_name);
+    switch (tag_name) {
+        case MKTAG('e','s','d','s'):
+            parse_esds(p, tmp_size - 8);
+            break;
+        default:
+            printf("unkown mp4a, [%s]\n", tmpbuf);
+            break;
+    }
+
 
 
     return 0;
@@ -1738,7 +1806,7 @@ int parse_SPS_NALU(unsigned char *in, int sps_size)
     unsigned char *p = in;
 
     printf("SPS p = [%x]\n", p[0]);
-    
+
 
     return 0;
 }
