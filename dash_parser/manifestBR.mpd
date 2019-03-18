@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" xmlns:mspr="urn:microsoft:playready" xmlns:cenc="urn:mpeg:cenc:2013" profiles="urn:hbbtv:dash:profile:isoff-live:2012,urn:mpeg:dash:profile:isoff-live:2011,urn:dvb:dash:profile:dvb-dash:2014" type="dynamic" availabilityStartTime="2019-01-14T03:23:08Z" minimumUpdatePeriod="PT2.00S" publishTime="2019-01-14T03:23:08Z" timeShiftBufferDepth="PT50.00S" minBufferTime="PT10.00S">
+  <Period id="0" start="PT0S">
+    <!--Video-->
+    <AdaptationSet id="0" maxWidth="1280" maxHeight="720" maxFrameRate="25/1" par="16:9" segmentAlignment="true">
+      <SegmentTemplate timescale="10000000" duration="20000000" startNumber="1" initialization="7c546c7da2e8bea74406489d9cc965e4_0_$RepresentationID$-init.mp4" media="7c546c7da2e8bea74406489d9cc965e4_0_$RepresentationID$-$Number$.mp4" />
+      <Representation id="video_00" mimeType="video/mp4" codecs="avc1.640020" bandwidth="2000000" width="1280" height="720" scanType="progressive" frameRate="25/1" sar="1:1" startWithSAP="1" />
+      <Representation id="video_01" mimeType="video/mp4" codecs="avc1.4d4020" bandwidth="1800000" width="960" height="540" scanType="progressive" frameRate="25/1" sar="1:1" startWithSAP="1" />
+      <Representation id="video_02" mimeType="video/mp4" codecs="avc1.4d401e" bandwidth="1024000" width="640" height="360" scanType="progressive" frameRate="25/1" sar="1:1" startWithSAP="1" />
+      <Representation id="video_03" mimeType="video/mp4" codecs="avc1.4d4015" bandwidth="512000" width="512" height="288" scanType="progressive" frameRate="25/1" sar="1:1" startWithSAP="1" />
+      <Representation id="video_04" mimeType="video/mp4" codecs="avc1.42c015" bandwidth="256000" width="480" height="270" scanType="progressive" frameRate="25/1" sar="1:1" startWithSAP="1" />
+      <Representation id="video_05" mimeType="video/mp4" codecs="avc1.42c00c" bandwidth="128000" width="320" height="180" scanType="progressive" frameRate="25/1" sar="1:1" startWithSAP="1" />
+    </AdaptationSet>
+    <!--Audio-->
+    <AdaptationSet id="1" lang="de" segmentAlignment="true"> <Role schemeIdUri="urn:mpeg:dash:role:2011" value="main" />
+      <SegmentTemplate timescale="10000000" duration="20000000" startNumber="1" initialization="7c546c7da2e8bea74406489d9cc965e4_1_$RepresentationID$-init.mp4" media="7c546c7da2e8bea74406489d9cc965e4_1_$RepresentationID$-$Number$.mp4" />
+      <Representation id="audio_06" mimeType="audio/mp4" codecs="mp4a.40.2" bandwidth="192000" audioSamplingRate="48000" startWithSAP="1">
+        <AudioChannelConfiguration schemeIdUri="urn:mpeg:dash:23003:3:audio_channel_configuration:2011" value="2" />
+      </Representation>
+    </AdaptationSet>
+    <!--Text-->
+    <AdaptationSet id="2" lang="de" segmentAlignment="true">
+      <Accessibility schemeIdUri="urn:tva:metadata:cs:AudioPurposeCS:2007" value="2" />
+      <Role schemeIdUri="urn:mpeg:dash:role:2011" value="main" />
+      <SegmentTemplate timescale="10000000" duration="20000000" startNumber="1" initialization="7c546c7da2e8bea74406489d9cc965e4_2_$RepresentationID$-init.mp4" media="7c546c7da2e8bea74406489d9cc965e4_2_$RepresentationID$-$Number$.mp4" />
+      <Representation id="subtitle_07" mimeType="application/mp4" codecs="stpp" bandwidth="9600" startWithSAP="1" />
+    </AdaptationSet>
+  </Period>
+</MPD>
