@@ -8,6 +8,128 @@
 #include <errno.h>
 #include <libxml/parser.h>
 
+struct Representation {
+    /* Mandatory
+     * specifies an identifier for this Representation.
+     * The identifier shall be unique within a Period unless the
+     * Representation is functionally identically to another Representation in the same Period.
+     * The identifier shall not contain whitespace characters.
+     * If used in the template-based URL construction as defined in 5.3.9.4.4,
+     * the string shall only contain characters that are
+     * permitted within an HTTP-URL according to RFC 1738.
+     * */
+    int id;
+
+    /* Mandatory
+     * Consider a hypothetical constant bitrate channel of
+     * bandwidth with the value of this attribute in bits per second (bps).
+     * Then, if the Representation is continuously delivered at this bitrate,
+     * starting at any SAP that is indicated either by @startWithSAP or
+     * by any Segment Index box, a client can be assured of
+     * having enough data for continuous playout providing
+     * playout begins after @minBufferTime * @bandwidth bits have been
+     * received (i.e. at time @minBufferTime after the first bit is received).
+     *
+     * For dependent Representations this value shall specify the
+     * minimum bandwidth as defined above of this Representation and
+     * all complementary Representations.
+     * */
+    int bandwidth;
+
+    /* Optional
+     * specifies a quality ranking of the Representation relative to
+     * other Representations in the same Adaptation Set.
+     * Lower values represent higher quality content.
+     * If not present then no ranking is defined.
+     * */
+    int qualityRanking;
+
+    /* Optional
+     * specifies all complementary Representations the Representation depends on
+     * in the decoding and/or presentation process as a
+     * whitespace-separated list of values of @id attributes.
+     *
+     * If not present, the Representation can be decoded and
+     * presented independently of any other Representation.
+     *
+     * This attribute shall not be present where there are no dependencies.
+     * */
+    int dependencyId;
+
+    /* Optional
+     * The attribute may be present for Representations containing video and
+     * its semantics are unspecified for any other type of Representations.
+     *
+     * If present, the attribute @mediaStreamStructureId specifies a
+     * whitespace-separated list of media stream structure identifier values.
+     * If media streams share the same media stream structure identifier value,
+     * the media streams shall have the following characteristics:
+     *  . The media streams have the same number of Stream Access Points of type 1 to 3.
+     *  . The values of TSAP, TDEC, TEPT, and TPTF of
+     *    the i-th SAP of type 1 to 3 in one media stream are identical to the values of
+     *    TSAP, TDEC, TEPT, and TPTF, respectively, of the i-th SAP of type 1 to 3 in the
+     *    other media streams for any value of i from 1 to the number of
+     *    SAPs of type 1 to 3 in any of the media streams.
+     *  . A media stream formed by concatenating the media stream of
+     *    a first Representation until ISAU (exclusive) of the i-th SAP of
+     *    type 1 to 3 and the media stream of a second Representation
+     *    (having the same media stream structure identifier value as for
+     *    the first Representation) starting from the ISAU (inclusive) of
+     *    the i-th SAP of type 1 to 3 conforms to the specification in
+     *    which the media stream format is specified for any value of
+     *    i from 1 to the number of SAPs of type 1 to 3 in either media stream.
+     *    Furthermore, the decoded pictures have an acceptable quality regardless of
+     *    type of the Stream Access Point access unit used.
+     *
+     *  All media stream structure identifier values for one
+     *  Adaptation Set shall differ from those of another Adaptation Set.
+     *
+     *  If not present, then for this Representation no similarities to
+     *  other Representations are known.
+     *
+     *  NOTE Indicating multiple media stream structure
+     *  identifier values for a Representation can be useful in
+     *  cases where switching between Representations A and
+     *  B as well as between Representations B and C is
+     *  allowed at non-IDR intra pictures, but switching
+     *  between Representations A and C would cause too
+     *  severe a degradation in the quality of the leading
+     *  pictures and is hence not allowed. To indicate these
+     *  permissions and restrictions, Representation A would
+     *  contain @mediaStreamStructureId equal to “1”,
+     *  Representation B would contain
+     *  @mediaStreamStructureId equal to “1 2”, and
+     *  Representation C would contain
+     *  @mediaStreamStructureId equal to “2”
+     * */
+    int mediaStreamStructureId;
+
+
+
+};
+struct ContentComponent {
+    /* Optional
+     * specifies an identifier for this media component.
+     * The attribute shall be unique in the scope of the containing Adaptation Set.
+     * */
+    int id;
+
+    /* Optional
+     * same semantics as in Table 5 for @lang attribute
+     * */
+    char lang[64];
+
+    /* Optional
+     * same semantics as in Table 5 for @contentType attribute
+     * */
+    char contentType[32];
+
+    /* Optional
+     * same semantics as in Table 5 for @par attribute
+     * */
+    char par[16];
+};
+
 struct AdaptationSet {
     /* Optional
      * specifies an unique identifier for this Adaptation Set in
@@ -339,12 +461,12 @@ struct dash_mpd_context {
     int64_t maxSubsegmentDuration;
 
     /*
-    struct ProgramInformation pi;
-    struct BaseURL baseurl;
-    struct Location location;
-    struct Period *period;
-    struct Metrics metrics;
-    */
+       struct ProgramInformation pi;
+       struct BaseURL baseurl;
+       struct Location location;
+       struct Period *period;
+       struct Metrics metrics;
+       */
 };
 
 int dash_playlist_context_get(char *url, char *buf, int buf_size)
@@ -382,6 +504,8 @@ int dash_mpd_context_get(char *buf, struct dash_mpd_context *dmc, int filesize)
     xmlNodePtr node = NULL;
     xmlNodePtr period_node = NULL;
     xmlNodePtr adaptionset_node = NULL;
+    xmlNodePtr content_component_node = NULL;
+    xmlNodePtr representation_node = NULL;
     xmlAttrPtr attr = NULL;
     xmlChar *val = NULL;
 
@@ -513,6 +637,117 @@ int dash_mpd_context_get(char *buf, struct dash_mpd_context *dmc, int filesize)
                         xmlFree(val);
                     }
                     printf("\n");
+                    adaptionset_node = xmlFirstElementChild(period_node);
+                    while (adaptionset_node) {
+                        if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"ContentComponent")) {
+                            printf("ContentComponent\n");
+                            attr = adaptionset_node->properties;
+                            while (attr) {
+                                val = xmlGetProp(adaptionset_node, attr->name);
+                                if (!strcasecmp((const char *)attr->name, (const char *)"id")) {
+                                    printf("id = [%s] ", val);
+                                } else if (!strcasecmp((const char *)attr->name, (const char *)"lang")) {
+                                    printf("lang = [%s] ", val);
+                                } else if (!strcasecmp((const char *)attr->name, (const char *)"contentType")) {
+                                    printf("contentType = [%s] ", val);
+                                } else if (!strcasecmp((const char *)attr->name, (const char *)"par")) {
+                                    printf("par = [%s] ", val);
+                                } else {
+                                }
+                                attr = attr->next;
+                                xmlFree(val);
+                            }
+                            printf("\n");
+                            content_component_node = xmlFirstElementChild(adaptionset_node);
+                            while (content_component_node) {
+                                if (!strcasecmp((const char *)content_component_node->name, (const char *)"Accessibility")) {
+                                    printf("Accessibility\n");
+                                    attr = content_component_node->properties;
+                                } else if (!strcasecmp((const char *)content_component_node->name, (const char *)"Role")){
+                                    printf("Role\n");
+                                    attr = content_component_node->properties;
+                                } else if (!strcasecmp((const char *)content_component_node->name, (const char *)"Rating")) {
+                                    printf("Rating\n");
+                                    attr = content_component_node->properties;
+                                } else if (!strcasecmp((const char *)content_component_node->name, (const char *)"Viewpoint")){
+                                    printf("Viewpoint\n");
+                                    attr = content_component_node->properties;
+                                } else {
+                                }
+                                content_component_node = xmlNextElementSibling(content_component_node);
+                            }
+                        } else if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"Viewpoint")) {
+                            printf("Viewpoint\n");
+                            attr = adaptionset_node->properties;
+                        } else if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"Rating")) {
+                            printf("Rating\n");
+                            attr = adaptionset_node->properties;
+                        } else if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"Role")) {
+                            printf("Role\n");
+                            attr = adaptionset_node->properties;
+                        } else if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"Accessibility")) {
+                            printf("Accessibility\n");
+                            attr = adaptionset_node->properties;
+                        } else if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"BaseURL")) {
+                            printf("BaseURL\n");
+                            attr = adaptionset_node->properties;
+                        } else if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"SegmentBase")) {
+                            printf("SegmentBase\n");
+                            attr = adaptionset_node->properties;
+                        } else if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"SegmentTemplate")) {
+                            printf("SegmentTemplate\n");
+                            attr = adaptionset_node->properties;
+                        } else if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"SegmentList")) {
+                            printf("SegmentList\n");
+                            attr = adaptionset_node->properties;
+                        } else if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"Representation")) {
+                            printf("Representation--\n");
+                            attr = adaptionset_node->properties;
+                            while (attr) {
+                                val = xmlGetProp(adaptionset_node, attr->name);
+                                if (!strcasecmp((const char *)attr->name, (const char *)"id")) {
+                                    printf("id = [%s] ", val);
+                                } else if (!strcasecmp((const char *)attr->name, (const char *)"bandwidth")) {
+                                    printf("bandwidth = [%s] ", val);
+                                } else if (!strcasecmp((const char *)attr->name, (const char *)"qualityRanking")) {
+                                    printf("qualityRanking = [%s] ", val);
+                                } else if (!strcasecmp((const char *)attr->name, (const char *)"dependencyId")) {
+                                    printf("dependencyId = [%s] ", val);
+                                } else if (!strcasecmp((const char *)attr->name, (const char *)"mediaStreamStructureId")) {
+                                    printf("mediaStreamStructureId = [%s] ", val);
+                                } else {
+                                }
+                                attr = attr->next;
+                                xmlFree(val);
+                            }
+                            printf("\n");
+                            representation_node = xmlFirstElementChild(adaptionset_node);
+                            while (representation_node) {
+                                if (!strcasecmp((const char *)representation_node->name, (const char *)"CommonAttributesElements")) {
+                                    printf("CommonAttributesElements\n");
+                                    attr = representation_node->properties;
+                                } else if (!strcasecmp((const char *)representation_node->name, (const char *)"BaseURL")) {
+                                    printf("BaseURL\n");
+                                    attr = representation_node->properties;
+                                } else if (!strcasecmp((const char *)representation_node->name, (const char *)"SubRepresentation")) {
+                                    printf("SubRepresentation\n");
+                                    attr = representation_node->properties;
+                                } else if (!strcasecmp((const char *)representation_node->name, (const char *)"SegmentBase")) {
+                                    printf("SegmentBase\n");
+                                    attr = representation_node->properties;
+                                } else if (!strcasecmp((const char *)representation_node->name, (const char *)"SegmentList")) {
+                                    printf("SegmentList");
+                                    attr = representation_node->properties;
+                                } else if (!strcasecmp((const char *)representation_node->name, (const char *)"SegmentTemplate")) {
+                                    printf("SegmentTemplate");
+                                    attr = representation_node->properties;
+                                } else {
+                                }
+                                representation_node = xmlNextElementSibling(representation_node);
+                            }
+                        }
+                        adaptionset_node = xmlNextElementSibling(adaptionset_node);
+                    }
                 }
                 period_node = xmlNextElementSibling(period_node);
             }
