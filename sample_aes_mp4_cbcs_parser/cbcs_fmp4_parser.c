@@ -227,6 +227,11 @@ struct SampleSizeBox {
     uint32_t entry_size;
 };
 
+struct SyncSampleBox {
+    uint32_t entry_count;
+    uint32_t sample_number;
+};
+
 struct ChunkOffsetBox {
     uint32_t entry_count;
     uint32_t chunk_offset;
@@ -2272,8 +2277,8 @@ int parse_stts(int fd, int stts_size)
 
     printf("\t\t\t\t\tstts->entry_count = [%d]\n", stts->entry_count);
     for (i = 0; i < stts->entry_count; i++) {
-        printf("\t\t\t\t\tstts->sample_count = [%d] stts->sample_delta = [%d]\n",
-               stts->sample_count, stts->sample_delta);
+//        printf("\t\t\t\t\tstts->sample_count = [%d] stts->sample_delta = [%d]\n",
+//               stts->sample_count, stts->sample_delta);
     }
     printf("\n");
 
@@ -2316,8 +2321,8 @@ int parse_ctts(int fd, int ctts_size)
 
     printf("\t\t\t\t\tctts->entry_count = [%d]\n", ctts->entry_count);
     for (i = 0; i < ctts->entry_count; i++) {
-        printf("\t\t\t\t\tctts->sample_count = [%d] ctts->sample_offset = [%d]\n",
-               ctts->sample_count, ctts->sample_offset);
+//        printf("\t\t\t\t\tctts->sample_count = [%d] ctts->sample_offset = [%d]\n",
+//               ctts->sample_count, ctts->sample_offset);
     }
     printf("\n");
 
@@ -2364,8 +2369,8 @@ int parse_stsc(int fd, int stsc_size)
 
     printf("\t\t\t\t\tstsc->entry_count = [%d]\n", stsc->entry_count);
     for (i = 0; i < stsc->entry_count; i++) {
-        printf("\t\t\t\t\tstsc->first_chunk = [%d] stsc->samples_per_chunk = [%d] stsc->sample_description_index = [%d]\n",
-               stsc->first_chunk, stsc->samples_per_chunk, stsc->sample_description_index);
+//        printf("\t\t\t\t\tstsc->first_chunk = [%d] stsc->samples_per_chunk = [%d] stsc->sample_description_index = [%d]\n",
+//               stsc->first_chunk, stsc->samples_per_chunk, stsc->sample_description_index);
     }
     printf("\n");
 
@@ -2402,7 +2407,7 @@ int parse_stsz(int fd, int stsz_size)
     printf("\t\t\t\t\tstsz->sample_size = [%d] stsz->sample_count = [%d]\n", stsz->sample_size, stsz->sample_count);
     if (stsz->sample_size == 0) {
         for (i = 0; i < stsz->sample_count; i++) {
-            printf("\t\t\t\t\tstsz->entry_size = [%d]\n", stsz->entry_size);
+           // printf("\t\t\t\t\tstsz->entry_size = [%d]\n", stsz->entry_size);
         }
     }
     printf("\n");
@@ -2445,7 +2450,7 @@ int parse_stco(int fd, int stco_size)
 
     printf("\t\t\t\t\tstco->entry_count = [%d]\n", stco->entry_count);
     for (i = 0; i < stco->entry_count; i++) {
-        printf("\t\t\t\t\tstco->chunk_offset = [%d]\n", stco->chunk_offset);
+    //    printf("\t\t\t\t\tstco->chunk_offset = [%d]\n", stco->chunk_offset);
     }
     printf("\n");
 
@@ -2462,13 +2467,35 @@ int parse_co64(int fd, int size)
     return 0;
 }
 
-int parse_stss(int fd, int size)
+int parse_stss(int fd, int stss_size)
 {
     printf("in stss\n");
-    unsigned char *buf1 = malloc(size);
-    if (!buf1)
+    struct SyncSampleBox *stss;
+    int size = stss_size - 4; /* aligned(8) class SyncSampleBox extends FullBox(‘stss’, version, 0)  */
+    char ext_version_flags[5];
+    unsigned char *buf = malloc(stss_size);
+    unsigned char *p = buf;
+    int i = 0;
+    if (!buf)
         return -ENOMEM;
-    read(fd, buf1, size);
+
+    stss = malloc(sizeof(struct SyncSampleBox));
+    /* read version and flags of the extends */
+    read(fd, ext_version_flags, 4);
+    read(fd, buf, size);
+    stss->entry_count = get_int_from_buf(p);
+    p += 4;
+    for (i = 0; i < stss->entry_count; i++) {
+        stss->sample_number = get_int_from_buf(p);
+        p += 4;
+    }
+
+    printf("\t\t\t\t\tstss->entry_count = [%d]\n", stss->entry_count);
+    for (i = 0; i < stss->entry_count; i++) {
+        printf("\t\t\t\t\tstss->sample_number = [%d]\n", stss->sample_number);
+    }
+    printf("\n");
+
     return 0;
 }
 
@@ -3399,21 +3426,27 @@ void get_root_data(int fd)
 
     while (cur_pos < filesize) {
         cur_pos = lseek(fd, 0, SEEK_CUR);
+        if (cur_pos >= filesize)
+            break;
         tag_size = get_size(fd);
         memset(buf, 0, sizeof(buf));
         get_tag_from_fd(fd, buf);
         if (!strcmp((char *)buf, "moov")) {
+            printf("in moov\n");
             parse_moov(fd, tag_size - 8);
         } else if (!strcmp((char *)buf, "mdat")) {
-            printf("in mdat\n");
+            printf("in mdat %u\n", tag_size - 8);
         } else if (!strcmp((char *)buf, "moof")) {
-            parse_moof(fd, tag_size - 8);
+            printf("in moof\n");
+//            parse_moof(fd, tag_size - 8);
         } else if (!strcmp((char *)buf, "ftyp")) {
+            printf("in ftyp\n");
             parse_ftyp(fd, tag_size - 8);
         }
 
         lseek(fd, cur_pos + tag_size, SEEK_SET);
-        if (cur_pos + tag_size >= filesize) {
+        if (cur_pos + tag_size > filesize) {
+            printf("cur_pos = %d + tag_size = %d >= filesize\n", cur_pos, tag_size);
             break;
         }
     }

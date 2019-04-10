@@ -497,28 +497,128 @@ int dash_playlist_context_get(char *url, char *buf, int buf_size)
     return mpd_stat.st_size;
 }
 
-int dash_mpd_context_get(char *buf, struct dash_mpd_context *dmc, int filesize)
+int dash_contentcomponent_attr_get(struct ContentComponent *content_component, xmlAttrPtr attr, xmlNodePtr adaptionset_node)
 {
-    xmlDoc *doc = NULL;
-    xmlNodePtr root_element = NULL;
-    xmlNodePtr node = NULL;
-    xmlNodePtr period_node = NULL;
-    xmlNodePtr adaptionset_node = NULL;
-    xmlNodePtr content_component_node = NULL;
-    xmlNodePtr representation_node = NULL;
+    xmlChar *val = NULL;
+    while (attr) {
+        val = xmlGetProp(adaptionset_node, attr->name);
+        if (!strcasecmp((const char *)attr->name, (const char *)"id")) {
+            printf("id = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"lang")) {
+            printf("lang = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"contentType")) {
+            printf("contentType = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"par")) {
+            printf("par = [%s] ", val);
+        } else {
+        }
+        attr = attr->next;
+        xmlFree(val);
+    }
+    return 0;
+}
+
+int dash_representation_attr_get(struct Representation *representation, xmlNodePtr adaptionset_node)
+{
     xmlAttrPtr attr = NULL;
     xmlChar *val = NULL;
-
-    doc = xmlReadMemory(buf, filesize, NULL, NULL, 0);
-    root_element = xmlDocGetRootElement(doc);
-    node = root_element;
-    val = xmlGetProp(node, (xmlChar *)"type");
-    if (val) {
-        printf("type = [%s]\n", val);
+    attr = adaptionset_node->properties;
+    while (attr) {
+        val = xmlGetProp(adaptionset_node, attr->name);
+        if (!strcasecmp((const char *)attr->name, (const char *)"id")) {
+            printf("id = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"bandwidth")) {
+            printf("bandwidth = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"qualityRanking")) {
+            printf("qualityRanking = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"dependencyId")) {
+            printf("dependencyId = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"mediaStreamStructureId")) {
+            printf("mediaStreamStructureId = [%s] ", val);
+        } else {
+        }
+        attr = attr->next;
         xmlFree(val);
     }
 
-    attr = node->properties;
+    return 0;
+}
+
+int dash_adaptationset_attr_get(xmlAttrPtr attr, xmlNodePtr period_node,  struct AdaptationSet *adaptionset)
+{
+    xmlChar *val = NULL;
+    while (attr) {
+        val = xmlGetProp(period_node, attr->name);
+        if (!strcasecmp((const char *)attr->name, (const char *)"id")) {
+            printf("id = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"group")) {
+            printf("group = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"lang")) {
+            printf("lang = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"contentType")) {
+            printf("contentType = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"par")) {
+            printf("par = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"minBandwidth")) {
+            printf("minBandwidth = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"maxBandwidth")) {
+            printf("maxBandwidth = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"minWidth")) {
+            printf("minWidth = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"maxWidth")) {
+            printf("maxWidth = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"minHeight")) {
+            printf("minHeight = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"maxHeight")) {
+            printf("maxHeight = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"minFrameRate")) {
+            printf("minFrameRate = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"maxFrameRate")) {
+            printf("maxFrameRate = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"segmentAlignment")) {
+            printf("segmentAlignment = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"bitstreamSwitching")) {
+            printf("bitstreamSwitching = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"subsegmentAlignment")) {
+            printf("subsegmentAlignment = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"subsegmentStartsWithSAP")) {
+            printf("subsegmentStartsWithSAP = [%s] ", val);
+        } else {
+        }
+
+        attr = attr->next;
+        xmlFree(val);
+    }
+
+    return 0;
+}
+
+int dash_period_attr_get(struct Period *peroid, xmlAttrPtr attr, xmlNodePtr period_node)
+{
+    xmlChar *val = NULL;
+    while (attr) {
+        val = xmlGetProp(period_node, attr->name);
+        if (!strcasecmp((const char *)attr->name, (const char *)"id")) {
+            printf("id = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"start")) {
+            printf("start = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"duration")) {
+            printf("duration = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"bitstreamSwitching")) {
+            printf("bitstreamSwitching = [%s] ", val);
+        } else {
+
+        }
+        attr = attr->next;
+        xmlFree(val);
+    }
+
+    return 0;
+}
+
+int dash_mpd_attr_get(struct dash_mpd_context *mpd, xmlAttrPtr attr, xmlNodePtr node)
+{
+    xmlChar *val = NULL;
     while (attr) {
         val = xmlGetProp(node, attr->name);
         if (!strcasecmp((const char *)attr->name, (const char *)"id")) {
@@ -550,213 +650,191 @@ int dash_mpd_context_get(char *buf, struct dash_mpd_context *dmc, int filesize)
         attr = attr->next;
         xmlFree(val);
     }
+    return 0;
+}
+
+int dash_contentcomponent_context_get(struct ContentComponent *content_component, xmlNodePtr adaptionset_node, xmlNodePtr content_component_node)
+{
+    xmlAttrPtr attr = NULL;
+
+    printf("ContentComponent\n");
+    attr = adaptionset_node->properties;
+    dash_contentcomponent_attr_get(content_component, attr, adaptionset_node);
+    printf("\n");
+    content_component_node = xmlFirstElementChild(adaptionset_node);
+    while (content_component_node) {
+        if (!strcasecmp((const char *)content_component_node->name, (const char *)"Accessibility")) {
+            printf("Accessibility\n");
+            attr = content_component_node->properties;
+        } else if (!strcasecmp((const char *)content_component_node->name, (const char *)"Role")){
+            printf("Role\n");
+            attr = content_component_node->properties;
+        } else if (!strcasecmp((const char *)content_component_node->name, (const char *)"Rating")) {
+            printf("Rating\n");
+            attr = content_component_node->properties;
+        } else if (!strcasecmp((const char *)content_component_node->name, (const char *)"Viewpoint")){
+            printf("Viewpoint\n");
+            attr = content_component_node->properties;
+        } else {
+        }
+        content_component_node = xmlNextElementSibling(content_component_node);
+    }
+    return 0;
+}
+
+int dash_representation_context_get(struct Representation *representation, xmlNodePtr adaptionset_node, xmlNodePtr representation_node)
+{
+    xmlAttrPtr attr = NULL;
+    printf("Representation--\n");
+
+    dash_representation_attr_get(representation, adaptionset_node);
+    printf("\n");
+    representation_node = xmlFirstElementChild(adaptionset_node);
+    while (representation_node) {
+        if (!strcasecmp((const char *)representation_node->name, (const char *)"CommonAttributesElements")) {
+            printf("CommonAttributesElements\n");
+            attr = representation_node->properties;
+        } else if (!strcasecmp((const char *)representation_node->name, (const char *)"BaseURL")) {
+            printf("BaseURL\n");
+            attr = representation_node->properties;
+        } else if (!strcasecmp((const char *)representation_node->name, (const char *)"SubRepresentation")) {
+            printf("SubRepresentation\n");
+            attr = representation_node->properties;
+        } else if (!strcasecmp((const char *)representation_node->name, (const char *)"SegmentBase")) {
+            printf("SegmentBase\n");
+            attr = representation_node->properties;
+        } else if (!strcasecmp((const char *)representation_node->name, (const char *)"SegmentList")) {
+            printf("SegmentList");
+            attr = representation_node->properties;
+        } else if (!strcasecmp((const char *)representation_node->name, (const char *)"SegmentTemplate")) {
+            printf("SegmentTemplate");
+            attr = representation_node->properties;
+        } else {
+        }
+        representation_node = xmlNextElementSibling(representation_node);
+    }
+
+    return 0;
+}
+
+int dash_adaptationset_context_get(xmlNodePtr adaptionset_node, struct AdaptationSet *adaptionset)
+{
+    xmlNodePtr content_component_node = NULL;
+    xmlNodePtr representation_node = NULL;
+    xmlAttrPtr attr = NULL;
+    struct ContentComponent *content_component = (struct ContentComponent *)malloc(sizeof(struct ContentComponent));
+    struct Representation *representation = (struct Representation *)malloc(sizeof(struct Representation));
+
+    while (adaptionset_node) {
+        if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"ContentComponent")) {
+            dash_contentcomponent_context_get(content_component, adaptionset_node, content_component_node);
+        } else if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"BaseURL")) {
+            printf("BaseURL\n");
+            attr = adaptionset_node->properties;
+        } else if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"SegmentBase")) {
+            printf("SegmentBase\n");
+            attr = adaptionset_node->properties;
+        } else if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"SegmentTemplate")) {
+            printf("SegmentTemplate\n");
+            attr = adaptionset_node->properties;
+        } else if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"SegmentList")) {
+            printf("SegmentList\n");
+            attr = adaptionset_node->properties;
+        } else if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"Accessibility")) {
+            printf("Accessibility\n");
+            attr = adaptionset_node->properties;
+        } else if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"Role")) {
+            printf("Role\n");
+            attr = adaptionset_node->properties;
+        } else if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"Rating")) {
+            printf("Rating\n");
+            attr = adaptionset_node->properties;
+        } else if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"Viewpoint")) {
+            printf("Viewpoint\n");
+            attr = adaptionset_node->properties;
+        } else if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"Representation")) {
+            dash_representation_context_get(representation, adaptionset_node, representation_node);
+        }
+        adaptionset_node = xmlNextElementSibling(adaptionset_node);
+    }
+
+    return 0;
+}
+
+int dash_peroid_context_get(xmlNodePtr node, struct Period *dash_peroid)
+{
+    xmlNodePtr period_node = NULL;
+    xmlNodePtr adaptionset_node = NULL;
+    xmlAttrPtr attr = NULL;
+    struct AdaptationSet *adaptionset = (struct AdaptationSet *)malloc(sizeof(struct AdaptationSet));
+
+    printf("[in %s] ", node->name);
+    if (!strcasecmp((const char *)node->name, (const char *)"Period")) {
+        period_node = node;
+        attr = node->properties;
+        dash_period_attr_get(dash_peroid, attr, period_node);
+        printf("\n");
+        period_node = xmlFirstElementChild(node);
+        while (period_node) {
+            if (!strcasecmp((const char *)period_node->name, (const char *)"BaseURL")) {
+                printf("BaseURL\n");
+                attr = period_node->properties;
+            } else if (!strcasecmp((const char *)period_node->name, (const char *)"SegmentBase")) {
+                printf("SegmentBase\n");
+                attr = period_node->properties;
+            } else if (!strcasecmp((const char *)period_node->name, (const char *)"Subset")) {
+                printf("Subset\n");
+                attr = period_node->properties;
+            } else if (!strcasecmp((const char *)period_node->name, (const char *)"SegmentTemplate")) {
+                printf("SegmentTemplate\n");
+                attr = period_node->properties;
+            } else if (!strcasecmp((const char *)period_node->name, (const char *)"SegmentList")) {
+                printf("SegmentList\n");
+                attr = period_node->properties;
+            } else if (!strcasecmp((const char *)period_node->name, (const char *)"AdaptationSet")) {
+                printf("AdaptationSet\n");
+                attr = period_node->properties;
+                dash_adaptationset_attr_get(attr, period_node, adaptionset);
+                printf("\n");
+                adaptionset_node = xmlFirstElementChild(period_node);
+                dash_adaptationset_context_get(adaptionset_node, adaptionset);
+            }
+            period_node = xmlNextElementSibling(period_node);
+        }
+        printf("\n");
+    } else if (!strcasecmp((const char *)node->name, (const char *)"ProgramInformation")) {
+    } else if (!strcasecmp((const char *)node->name, (const char *)"BaseURL")) {
+    } else if (!strcasecmp((const char *)node->name, (const char *)"Location")) {
+    } else if (!strcasecmp((const char *)node->name, (const char *)"Metrics")) {
+    }
+    return 0;
+}
+
+int dash_mpd_context_get(char *buf, struct dash_mpd_context *dmc, int filesize)
+{
+    xmlDoc *doc = NULL;
+    xmlNodePtr root_element = NULL;
+    xmlNodePtr node = NULL;
+    xmlAttrPtr attr = NULL;
+    xmlChar *val = NULL;
+    struct Period *peroid = (struct Period *)malloc(sizeof(struct Period));
+    struct dash_mpd_context *mpd = (struct dash_mpd_context *)malloc(sizeof(struct dash_mpd_context));
+
+    doc = xmlReadMemory(buf, filesize, NULL, NULL, 0);
+    root_element = xmlDocGetRootElement(doc);
+    node = root_element;
+    val = xmlGetProp(node, (xmlChar *)"type");
+    if (val) {
+        printf("type = [%s]\n", val);
+        xmlFree(val);
+    }
+
+    attr = node->properties;
+    dash_mpd_attr_get(mpd, attr, node);
 
     node = xmlFirstElementChild(node);
     while (node) {
-        printf("[in %s] ", node->name);
-        if (!strcasecmp((const char *)node->name, (const char *)"Period")) {
-            period_node = node;
-            attr = node->properties;
-            while (attr) {
-                val = xmlGetProp(node, attr->name);
-                if (!strcasecmp((const char *)attr->name, (const char *)"id")) {
-                    printf("id = [%s] ", val);
-                } else if (!strcasecmp((const char *)attr->name, (const char *)"start")) {
-                    printf("start = [%s] ", val);
-                } else if (!strcasecmp((const char *)attr->name, (const char *)"duration")) {
-                    printf("duration = [%s] ", val);
-                } else if (!strcasecmp((const char *)attr->name, (const char *)"bitstreamSwitching")) {
-                    printf("bitstreamSwitching = [%s] ", val);
-                } else {
-
-                }
-                attr = attr->next;
-                xmlFree(val);
-            }
-            printf("\n");
-            period_node = xmlFirstElementChild(node);
-            while (period_node) {
-                if (!strcasecmp((const char *)period_node->name, (const char *)"BaseURL")) {
-                    printf("BaseURL\n");
-                    attr = period_node->properties;
-                } else if (!strcasecmp((const char *)period_node->name, (const char *)"SegmentBase")) {
-                    printf("SegmentBase\n");
-                    attr = period_node->properties;
-                } else if (!strcasecmp((const char *)period_node->name, (const char *)"Subset")) {
-                    printf("Subset\n");
-                    attr = period_node->properties;
-                } else if (!strcasecmp((const char *)period_node->name, (const char *)"SegmentTemplate")) {
-                    printf("SegmentTemplate\n");
-                    attr = period_node->properties;
-                } else if (!strcasecmp((const char *)period_node->name, (const char *)"SegmentList")) {
-                    printf("SegmentList\n");
-                    attr = period_node->properties;
-                } else if (!strcasecmp((const char *)period_node->name, (const char *)"AdaptationSet")) {
-                    printf("AdaptationSet\n");
-                    attr = period_node->properties;
-                    while (attr) {
-                        val = xmlGetProp(period_node, attr->name);
-                        if (!strcasecmp((const char *)attr->name, (const char *)"id")) {
-                            printf("id = [%s] ", val);
-                        } else if (!strcasecmp((const char *)attr->name, (const char *)"group")) {
-                            printf("group = [%s] ", val);
-                        } else if (!strcasecmp((const char *)attr->name, (const char *)"lang")) {
-                            printf("lang = [%s] ", val);
-                        } else if (!strcasecmp((const char *)attr->name, (const char *)"contentType")) {
-                            printf("contentType = [%s] ", val);
-                        } else if (!strcasecmp((const char *)attr->name, (const char *)"par")) {
-                            printf("par = [%s] ", val);
-                        } else if (!strcasecmp((const char *)attr->name, (const char *)"minBandwidth")) {
-                            printf("minBandwidth = [%s] ", val);
-                        } else if (!strcasecmp((const char *)attr->name, (const char *)"maxBandwidth")) {
-                            printf("maxBandwidth = [%s] ", val);
-                        } else if (!strcasecmp((const char *)attr->name, (const char *)"minWidth")) {
-                            printf("minWidth = [%s] ", val);
-                        } else if (!strcasecmp((const char *)attr->name, (const char *)"maxWidth")) {
-                            printf("maxWidth = [%s] ", val);
-                        } else if (!strcasecmp((const char *)attr->name, (const char *)"minHeight")) {
-                            printf("minHeight = [%s] ", val);
-                        } else if (!strcasecmp((const char *)attr->name, (const char *)"maxHeight")) {
-                            printf("maxHeight = [%s] ", val);
-                        } else if (!strcasecmp((const char *)attr->name, (const char *)"minFrameRate")) {
-                            printf("minFrameRate = [%s] ", val);
-                        } else if (!strcasecmp((const char *)attr->name, (const char *)"maxFrameRate")) {
-                            printf("maxFrameRate = [%s] ", val);
-                        } else if (!strcasecmp((const char *)attr->name, (const char *)"segmentAlignment")) {
-                            printf("segmentAlignment = [%s] ", val);
-                        } else if (!strcasecmp((const char *)attr->name, (const char *)"bitstreamSwitching")) {
-                            printf("bitstreamSwitching = [%s] ", val);
-                        } else if (!strcasecmp((const char *)attr->name, (const char *)"subsegmentAlignment")) {
-                            printf("subsegmentAlignment = [%s] ", val);
-                        } else if (!strcasecmp((const char *)attr->name, (const char *)"subsegmentStartsWithSAP")) {
-                            printf("subsegmentStartsWithSAP = [%s] ", val);
-                        } else {
-                        }
-
-                        attr = attr->next;
-                        xmlFree(val);
-                    }
-                    printf("\n");
-                    adaptionset_node = xmlFirstElementChild(period_node);
-                    while (adaptionset_node) {
-                        if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"ContentComponent")) {
-                            printf("ContentComponent\n");
-                            attr = adaptionset_node->properties;
-                            while (attr) {
-                                val = xmlGetProp(adaptionset_node, attr->name);
-                                if (!strcasecmp((const char *)attr->name, (const char *)"id")) {
-                                    printf("id = [%s] ", val);
-                                } else if (!strcasecmp((const char *)attr->name, (const char *)"lang")) {
-                                    printf("lang = [%s] ", val);
-                                } else if (!strcasecmp((const char *)attr->name, (const char *)"contentType")) {
-                                    printf("contentType = [%s] ", val);
-                                } else if (!strcasecmp((const char *)attr->name, (const char *)"par")) {
-                                    printf("par = [%s] ", val);
-                                } else {
-                                }
-                                attr = attr->next;
-                                xmlFree(val);
-                            }
-                            printf("\n");
-                            content_component_node = xmlFirstElementChild(adaptionset_node);
-                            while (content_component_node) {
-                                if (!strcasecmp((const char *)content_component_node->name, (const char *)"Accessibility")) {
-                                    printf("Accessibility\n");
-                                    attr = content_component_node->properties;
-                                } else if (!strcasecmp((const char *)content_component_node->name, (const char *)"Role")){
-                                    printf("Role\n");
-                                    attr = content_component_node->properties;
-                                } else if (!strcasecmp((const char *)content_component_node->name, (const char *)"Rating")) {
-                                    printf("Rating\n");
-                                    attr = content_component_node->properties;
-                                } else if (!strcasecmp((const char *)content_component_node->name, (const char *)"Viewpoint")){
-                                    printf("Viewpoint\n");
-                                    attr = content_component_node->properties;
-                                } else {
-                                }
-                                content_component_node = xmlNextElementSibling(content_component_node);
-                            }
-                        } else if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"Viewpoint")) {
-                            printf("Viewpoint\n");
-                            attr = adaptionset_node->properties;
-                        } else if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"Rating")) {
-                            printf("Rating\n");
-                            attr = adaptionset_node->properties;
-                        } else if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"Role")) {
-                            printf("Role\n");
-                            attr = adaptionset_node->properties;
-                        } else if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"Accessibility")) {
-                            printf("Accessibility\n");
-                            attr = adaptionset_node->properties;
-                        } else if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"BaseURL")) {
-                            printf("BaseURL\n");
-                            attr = adaptionset_node->properties;
-                        } else if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"SegmentBase")) {
-                            printf("SegmentBase\n");
-                            attr = adaptionset_node->properties;
-                        } else if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"SegmentTemplate")) {
-                            printf("SegmentTemplate\n");
-                            attr = adaptionset_node->properties;
-                        } else if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"SegmentList")) {
-                            printf("SegmentList\n");
-                            attr = adaptionset_node->properties;
-                        } else if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"Representation")) {
-                            printf("Representation--\n");
-                            attr = adaptionset_node->properties;
-                            while (attr) {
-                                val = xmlGetProp(adaptionset_node, attr->name);
-                                if (!strcasecmp((const char *)attr->name, (const char *)"id")) {
-                                    printf("id = [%s] ", val);
-                                } else if (!strcasecmp((const char *)attr->name, (const char *)"bandwidth")) {
-                                    printf("bandwidth = [%s] ", val);
-                                } else if (!strcasecmp((const char *)attr->name, (const char *)"qualityRanking")) {
-                                    printf("qualityRanking = [%s] ", val);
-                                } else if (!strcasecmp((const char *)attr->name, (const char *)"dependencyId")) {
-                                    printf("dependencyId = [%s] ", val);
-                                } else if (!strcasecmp((const char *)attr->name, (const char *)"mediaStreamStructureId")) {
-                                    printf("mediaStreamStructureId = [%s] ", val);
-                                } else {
-                                }
-                                attr = attr->next;
-                                xmlFree(val);
-                            }
-                            printf("\n");
-                            representation_node = xmlFirstElementChild(adaptionset_node);
-                            while (representation_node) {
-                                if (!strcasecmp((const char *)representation_node->name, (const char *)"CommonAttributesElements")) {
-                                    printf("CommonAttributesElements\n");
-                                    attr = representation_node->properties;
-                                } else if (!strcasecmp((const char *)representation_node->name, (const char *)"BaseURL")) {
-                                    printf("BaseURL\n");
-                                    attr = representation_node->properties;
-                                } else if (!strcasecmp((const char *)representation_node->name, (const char *)"SubRepresentation")) {
-                                    printf("SubRepresentation\n");
-                                    attr = representation_node->properties;
-                                } else if (!strcasecmp((const char *)representation_node->name, (const char *)"SegmentBase")) {
-                                    printf("SegmentBase\n");
-                                    attr = representation_node->properties;
-                                } else if (!strcasecmp((const char *)representation_node->name, (const char *)"SegmentList")) {
-                                    printf("SegmentList");
-                                    attr = representation_node->properties;
-                                } else if (!strcasecmp((const char *)representation_node->name, (const char *)"SegmentTemplate")) {
-                                    printf("SegmentTemplate");
-                                    attr = representation_node->properties;
-                                } else {
-                                }
-                                representation_node = xmlNextElementSibling(representation_node);
-                            }
-                        }
-                        adaptionset_node = xmlNextElementSibling(adaptionset_node);
-                    }
-                }
-                period_node = xmlNextElementSibling(period_node);
-            }
-            printf("\n");
-        } else if (!strcasecmp((const char *)node->name, (const char *)"ProgramInformation")) {
-        } else if (!strcasecmp((const char *)node->name, (const char *)"BaseURL")) {
-        } else if (!strcasecmp((const char *)node->name, (const char *)"Location")) {
-        } else if (!strcasecmp((const char *)node->name, (const char *)"Metrics")) {
-        }
+        dash_peroid_context_get(node, peroid);
         node = xmlNextElementSibling(node);
     }
 
