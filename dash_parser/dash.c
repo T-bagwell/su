@@ -8,6 +8,21 @@
 #include <errno.h>
 #include <libxml/parser.h>
 
+struct ProgramInformation {
+    /* Optional
+     * Declares the language code(s) for this Program Information.
+     * The syntax and semantics according to IETF RFC 5646 shall be applied.
+     * If not present the value is unknown.
+     * */
+    char lang[32];
+
+    /* Optional
+     * If provided, this attribute specifies an absolute URL which
+     * provides more information about the Media Presentation.
+     * If not present the value is unknown.
+     * */
+    char moreInformationURL[1024];
+};
 struct Representation {
     /* Mandatory
      * specifies an identifier for this Representation.
@@ -460,8 +475,9 @@ struct dash_mpd_context {
      * */
     int64_t maxSubsegmentDuration;
 
+    /* specifies descriptive information about the program */
+    struct ProgramInformation pi;
     /*
-       struct ProgramInformation pi;
        struct BaseURL baseurl;
        struct Location location;
        struct Period *period;
@@ -761,18 +777,67 @@ int dash_adaptationset_context_get(xmlNodePtr adaptionset_node, struct Adaptatio
     return 0;
 }
 
+int dash_programinfo_attr_get(struct ProgramInformation *programinfo, xmlNodePtr node)
+{
+    xmlAttrPtr attr = NULL;
+    xmlChar *val = NULL;
+    attr = node->properties;
+    while (attr) {
+        val = xmlGetProp(node, attr->name);
+        if (!strcasecmp((const char *)attr->name, (const char *)"lang")) {
+            printf("lang = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"moreInformationURL")) {
+            printf("moreInformationURL = [%s] ", val);
+        } else {
+        }
+        attr = attr->next;
+        xmlFree(val);
+    }
+
+    return 0;
+}
+int dash_programinfo_context_get(struct ProgramInformation *programinfo, xmlNodePtr node)
+{
+    xmlChar *val = NULL;
+    xmlNodePtr programinfo_node = NULL;
+    printf("ProgramInformation\n");
+
+    dash_programinfo_attr_get(programinfo, node);
+    programinfo_node = xmlFirstElementChild(node);
+    while (programinfo_node) {
+        if (!strcasecmp((const char *)programinfo_node->name, (const char *)"Title")) {
+            printf("Title\n");
+            val = xmlNodeGetContent(programinfo_node);
+            printf("Title = %s\n", val);
+        } else if (!strcasecmp((const char *)programinfo_node->name, (const char *)"Source")) {
+            printf("Source\n");
+            val = xmlNodeGetContent(programinfo_node);
+            printf("Source = %s\n", val);
+        } else if (!strcasecmp((const char *)programinfo_node->name, (const char *)"Copyright")) {
+            printf("Copyright\n");
+            val = xmlNodeGetContent(programinfo_node);
+            printf("Copyright = %s\n", val);
+        } else {
+        }
+        programinfo_node = xmlNextElementSibling(programinfo_node);
+    }
+
+    return 0;
+
+}
 int dash_peroid_context_get(xmlNodePtr node, struct Period *dash_peroid)
 {
     xmlNodePtr period_node = NULL;
+    xmlNodePtr programinfo_node = NULL;
     xmlNodePtr adaptionset_node = NULL;
     xmlAttrPtr attr = NULL;
     struct AdaptationSet *adaptionset = (struct AdaptationSet *)malloc(sizeof(struct AdaptationSet));
+    struct ProgramInformation *programinfo = (struct ProgramInformation *)malloc(sizeof(struct ProgramInformation));
 
     printf("[in %s] ", node->name);
     if (!strcasecmp((const char *)node->name, (const char *)"Period")) {
-        period_node = node;
         attr = node->properties;
-        dash_period_attr_get(dash_peroid, attr, period_node);
+        dash_period_attr_get(dash_peroid, attr, node);
         printf("\n");
         period_node = xmlFirstElementChild(node);
         while (period_node) {
@@ -803,6 +868,9 @@ int dash_peroid_context_get(xmlNodePtr node, struct Period *dash_peroid)
         }
         printf("\n");
     } else if (!strcasecmp((const char *)node->name, (const char *)"ProgramInformation")) {
+        programinfo_node = node;
+        attr = node->properties;
+        dash_programinfo_context_get(programinfo, node);
     } else if (!strcasecmp((const char *)node->name, (const char *)"BaseURL")) {
     } else if (!strcasecmp((const char *)node->name, (const char *)"Location")) {
     } else if (!strcasecmp((const char *)node->name, (const char *)"Metrics")) {
