@@ -8,6 +8,30 @@
 #include <errno.h>
 #include <libxml/parser.h>
 
+struct BaseUrl {
+    /* Optional
+     * This attribute specifies a relationship between Base URLs such that
+     * BaseURL elements with the same @serviceLocation value are likely to
+     * have their URLs resolve to services at a common network location,
+     * for example a common Content Delivery Network.
+     * If not present, no relationship to any other Base URL is known.
+     * */
+    char serviceLocation[32];
+
+    /* Optional
+     * if present specifies HTTP partial GET requests may alternatively be
+     * issued by adding the byte range into a regular HTTP-URL based on
+     * the value of this attribute and the construction rules in Annex E.2.
+     *
+     * If not present,
+     *     HTTP partial GET requests may not be converted in regular GET requests.
+     *
+     * NOTE
+     *   Such alternative requests are expected to not be used unless
+     *   the DASH application requires this. For more details refer to Annex E
+     * */
+    char byteRange[32];
+};
 struct ProgramInformation {
     /* Optional
      * Declares the language code(s) for this Program Information.
@@ -609,6 +633,46 @@ int dash_adaptationset_attr_get(xmlAttrPtr attr, xmlNodePtr period_node,  struct
     return 0;
 }
 
+int dash_programinfo_attr_get(struct ProgramInformation *programinfo, xmlNodePtr node)
+{
+    xmlAttrPtr attr = NULL;
+    xmlChar *val = NULL;
+    attr = node->properties;
+    while (attr) {
+        val = xmlGetProp(node, attr->name);
+        if (!strcasecmp((const char *)attr->name, (const char *)"lang")) {
+            printf("lang = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"moreInformationURL")) {
+            printf("moreInformationURL = [%s] ", val);
+        } else {
+        }
+        attr = attr->next;
+        xmlFree(val);
+    }
+
+    return 0;
+}
+
+int dash_baseurl_attr_get(struct BaseUrl *baseurl, xmlNodePtr node)
+{
+    xmlAttrPtr attr = NULL;
+    xmlChar *val = NULL;
+    attr = node->properties;
+    while (attr) {
+        val = xmlGetProp(node, attr->name);
+        if (!strcasecmp((const char *)attr->name, (const char *)"serviceLocation")) {
+            printf("serviceLocation = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"byteRange")) {
+            printf("byteRange = [%s] ", val);
+        } else {
+        }
+        attr = attr->next;
+        xmlFree(val);
+    }
+
+    return 0;
+}
+
 int dash_period_attr_get(struct Period *peroid, xmlAttrPtr attr, xmlNodePtr period_node)
 {
     xmlChar *val = NULL;
@@ -777,25 +841,6 @@ int dash_adaptationset_context_get(xmlNodePtr adaptionset_node, struct Adaptatio
     return 0;
 }
 
-int dash_programinfo_attr_get(struct ProgramInformation *programinfo, xmlNodePtr node)
-{
-    xmlAttrPtr attr = NULL;
-    xmlChar *val = NULL;
-    attr = node->properties;
-    while (attr) {
-        val = xmlGetProp(node, attr->name);
-        if (!strcasecmp((const char *)attr->name, (const char *)"lang")) {
-            printf("lang = [%s] ", val);
-        } else if (!strcasecmp((const char *)attr->name, (const char *)"moreInformationURL")) {
-            printf("moreInformationURL = [%s] ", val);
-        } else {
-        }
-        attr = attr->next;
-        xmlFree(val);
-    }
-
-    return 0;
-}
 int dash_programinfo_context_get(struct ProgramInformation *programinfo, xmlNodePtr node)
 {
     xmlChar *val = NULL;
@@ -823,58 +868,52 @@ int dash_programinfo_context_get(struct ProgramInformation *programinfo, xmlNode
     }
 
     return 0;
-
 }
+
 int dash_peroid_context_get(xmlNodePtr node, struct Period *dash_peroid)
 {
     xmlNodePtr period_node = NULL;
-    xmlNodePtr programinfo_node = NULL;
     xmlNodePtr adaptionset_node = NULL;
     xmlAttrPtr attr = NULL;
+    xmlChar *val = NULL;
     struct AdaptationSet *adaptionset = (struct AdaptationSet *)malloc(sizeof(struct AdaptationSet));
-    struct ProgramInformation *programinfo = (struct ProgramInformation *)malloc(sizeof(struct ProgramInformation));
+    struct BaseUrl *baseurl = (struct BaseUrl *)malloc(sizeof(struct BaseUrl));
 
     printf("[in %s] ", node->name);
-    if (!strcasecmp((const char *)node->name, (const char *)"Period")) {
-        attr = node->properties;
-        dash_period_attr_get(dash_peroid, attr, node);
-        printf("\n");
-        period_node = xmlFirstElementChild(node);
-        while (period_node) {
-            if (!strcasecmp((const char *)period_node->name, (const char *)"BaseURL")) {
-                printf("BaseURL\n");
-                attr = period_node->properties;
-            } else if (!strcasecmp((const char *)period_node->name, (const char *)"SegmentBase")) {
-                printf("SegmentBase\n");
-                attr = period_node->properties;
-            } else if (!strcasecmp((const char *)period_node->name, (const char *)"Subset")) {
-                printf("Subset\n");
-                attr = period_node->properties;
-            } else if (!strcasecmp((const char *)period_node->name, (const char *)"SegmentTemplate")) {
-                printf("SegmentTemplate\n");
-                attr = period_node->properties;
-            } else if (!strcasecmp((const char *)period_node->name, (const char *)"SegmentList")) {
-                printf("SegmentList\n");
-                attr = period_node->properties;
-            } else if (!strcasecmp((const char *)period_node->name, (const char *)"AdaptationSet")) {
-                printf("AdaptationSet\n");
-                attr = period_node->properties;
-                dash_adaptationset_attr_get(attr, period_node, adaptionset);
-                printf("\n");
-                adaptionset_node = xmlFirstElementChild(period_node);
-                dash_adaptationset_context_get(adaptionset_node, adaptionset);
-            }
-            period_node = xmlNextElementSibling(period_node);
+    attr = node->properties;
+    dash_period_attr_get(dash_peroid, attr, node);
+    printf("\n");
+    period_node = xmlFirstElementChild(node);
+    while (period_node) {
+        if (!strcasecmp((const char *)period_node->name, (const char *)"BaseURL")) {
+            printf("BaseURL\n");
+            dash_baseurl_attr_get(baseurl, node);
+            val = xmlNodeGetContent(node);
+            printf("BaseURL: %s\n", val);
+            attr = period_node->properties;
+        } else if (!strcasecmp((const char *)period_node->name, (const char *)"SegmentBase")) {
+            printf("SegmentBase\n");
+            attr = period_node->properties;
+        } else if (!strcasecmp((const char *)period_node->name, (const char *)"Subset")) {
+            printf("Subset\n");
+            attr = period_node->properties;
+        } else if (!strcasecmp((const char *)period_node->name, (const char *)"SegmentTemplate")) {
+            printf("SegmentTemplate\n");
+            attr = period_node->properties;
+        } else if (!strcasecmp((const char *)period_node->name, (const char *)"SegmentList")) {
+            printf("SegmentList\n");
+            attr = period_node->properties;
+        } else if (!strcasecmp((const char *)period_node->name, (const char *)"AdaptationSet")) {
+            printf("AdaptationSet\n");
+            attr = period_node->properties;
+            dash_adaptationset_attr_get(attr, period_node, adaptionset);
+            printf("\n");
+            adaptionset_node = xmlFirstElementChild(period_node);
+            dash_adaptationset_context_get(adaptionset_node, adaptionset);
         }
-        printf("\n");
-    } else if (!strcasecmp((const char *)node->name, (const char *)"ProgramInformation")) {
-        programinfo_node = node;
-        attr = node->properties;
-        dash_programinfo_context_get(programinfo, node);
-    } else if (!strcasecmp((const char *)node->name, (const char *)"BaseURL")) {
-    } else if (!strcasecmp((const char *)node->name, (const char *)"Location")) {
-    } else if (!strcasecmp((const char *)node->name, (const char *)"Metrics")) {
+        period_node = xmlNextElementSibling(period_node);
     }
+    printf("\n");
     return 0;
 }
 
@@ -883,10 +922,12 @@ int dash_mpd_context_get(char *buf, struct dash_mpd_context *dmc, int filesize)
     xmlDoc *doc = NULL;
     xmlNodePtr root_element = NULL;
     xmlNodePtr node = NULL;
+    xmlNodePtr programinfo_node = NULL;
     xmlAttrPtr attr = NULL;
     xmlChar *val = NULL;
     struct Period *peroid = (struct Period *)malloc(sizeof(struct Period));
     struct dash_mpd_context *mpd = (struct dash_mpd_context *)malloc(sizeof(struct dash_mpd_context));
+    struct ProgramInformation *programinfo = (struct ProgramInformation *)malloc(sizeof(struct ProgramInformation));
 
     doc = xmlReadMemory(buf, filesize, NULL, NULL, 0);
     root_element = xmlDocGetRootElement(doc);
@@ -902,7 +943,23 @@ int dash_mpd_context_get(char *buf, struct dash_mpd_context *dmc, int filesize)
 
     node = xmlFirstElementChild(node);
     while (node) {
-        dash_peroid_context_get(node, peroid);
+        if (!strcasecmp((const char *)node->name, (const char *)"Period")) {
+            dash_peroid_context_get(node, peroid);
+            printf("\n");
+        } else if (!strcasecmp((const char *)node->name, (const char *)"ProgramInformation")) {
+            programinfo_node = node;
+            attr = node->properties;
+            dash_programinfo_context_get(programinfo, node);
+        } else if (!strcasecmp((const char *)node->name, (const char *)"BaseURL")) {
+            dash_programinfo_attr_get(programinfo, node);
+            val = xmlNodeGetContent(node);
+            printf("BaseURL: %s\n", val);
+        } else if (!strcasecmp((const char *)node->name, (const char *)"Location")) {
+            val = xmlNodeGetContent(node);
+            printf("Location: %s\n", val);
+        } else if (!strcasecmp((const char *)node->name, (const char *)"Metrics")) {
+        }
+
         node = xmlNextElementSibling(node);
     }
 
