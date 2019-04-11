@@ -8,6 +8,31 @@
 #include <errno.h>
 #include <libxml/parser.h>
 
+struct SegmentTemplate {
+    /* Optional
+     * specifies the template to create the Media Segment List.
+     * */
+    char media[32];
+
+    /* Optional
+     * specifies the template to create the Index Segment List.
+     * If neither the $Number$ nor the $Time$ identifier is included,
+     * this provides the URL to a Representation Index.
+     * */
+    char index[1024];
+
+    /* Optional
+     * specifies the template to create the Initialization Segment.
+     * Neither $Number$ nor the $Time$ identifier shall be included.
+     * */
+    char initialization[1024];
+
+    /* Optional
+     * specifies the template to create the Bitstream Switching Segment.
+     * Neither $Number$ nor the $Time$ identifier shall be included.
+     * */
+    char bitstreamSwitching[1024];
+};
 struct SegmentList {
     /* Optional
      * in combination with the @mediaRange attribute specifies the HTTP-URL for
@@ -836,6 +861,30 @@ int dash_segmentlist_attr_get(struct SegmentList *segmentlist, xmlNodePtr node)
     return 0;
 }
 
+int dash_segmenttemplate_attr_get(struct SegmentTemplate *segmenttemplate, xmlNodePtr node)
+{
+    xmlAttrPtr attr = NULL;
+    xmlChar *val = NULL;
+    attr = node->properties;
+    while (attr) {
+        val = xmlGetProp(node, attr->name);
+        if (!strcasecmp((const char *)attr->name, (const char *)"media")) {
+            printf("media = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"index")) {
+            printf("index = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"initialization")) {
+            printf("initialization = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"bitstreamSwitching")) {
+            printf("bitstreamSwitching = [%s] ", val);
+        } else {
+        }
+        attr = attr->next;
+        xmlFree(val);
+    }
+
+    return 0;
+}
+
 int dash_period_attr_get(struct Period *peroid, xmlAttrPtr attr, xmlNodePtr period_node)
 {
     xmlChar *val = NULL;
@@ -955,6 +1004,7 @@ int dash_representation_context_get(struct Representation *representation, xmlNo
     xmlAttrPtr attr = NULL;
     struct SegmentBase *segmentbase = (struct SegmentBase *)malloc(sizeof(struct SegmentBase));
     struct SegmentList *segmentlist = (struct SegmentList *)malloc(sizeof(struct SegmentList));
+    struct SegmentTemplate *segmenttemplate = (struct SegmentTemplate *)malloc(sizeof(struct SegmentTemplate));
     printf("Representation--\n");
 
     dash_representation_attr_get(representation, adaptionset_node);
@@ -978,7 +1028,7 @@ int dash_representation_context_get(struct Representation *representation, xmlNo
             dash_segmentlist_attr_get(segmentlist, representation_node);
         } else if (!strcasecmp((const char *)representation_node->name, (const char *)"SegmentTemplate")) {
             printf("SegmentTemplate");
-            attr = representation_node->properties;
+            dash_segmenttemplate_attr_get(segmenttemplate, representation_node);
         } else {
         }
         representation_node = xmlNextElementSibling(representation_node);
@@ -996,6 +1046,7 @@ int dash_adaptationset_context_get(xmlNodePtr adaptionset_node, struct Adaptatio
     struct Representation *representation = (struct Representation *)malloc(sizeof(struct Representation));
     struct SegmentBase *segmentbase = (struct SegmentBase *)malloc(sizeof(struct SegmentBase));
     struct SegmentList *segmentlist = (struct SegmentList *)malloc(sizeof(struct SegmentList));
+    struct SegmentTemplate *segmenttemplate = (struct SegmentTemplate *)malloc(sizeof(struct SegmentTemplate));
 
     while (adaptionset_node) {
         if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"ContentComponent")) {
@@ -1008,7 +1059,7 @@ int dash_adaptationset_context_get(xmlNodePtr adaptionset_node, struct Adaptatio
             dash_segmentbase_context_get(segmentbase, content_component_node);
         } else if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"SegmentTemplate")) {
             printf("SegmentTemplate\n");
-            attr = adaptionset_node->properties;
+            dash_segmenttemplate_attr_get(segmenttemplate, adaptionset_node);
         } else if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"SegmentList")) {
             printf("SegmentList\n");
             dash_segmentlist_attr_get(segmentlist, content_component_node);
@@ -1072,6 +1123,7 @@ int dash_peroid_context_get(xmlNodePtr node, struct Period *dash_peroid)
     struct BaseUrl *baseurl = (struct BaseUrl *)malloc(sizeof(struct BaseUrl));
     struct SegmentBase *segmentbase = (struct SegmentBase *)malloc(sizeof(struct SegmentBase));
     struct SegmentList *segmentlist = (struct SegmentList *)malloc(sizeof(struct SegmentList));
+    struct SegmentTemplate *segmenttemplate = (struct SegmentTemplate *)malloc(sizeof(struct SegmentTemplate));
 
     printf("[in %s] ", node->name);
     attr = node->properties;
@@ -1092,7 +1144,7 @@ int dash_peroid_context_get(xmlNodePtr node, struct Period *dash_peroid)
             attr = period_node->properties;
         } else if (!strcasecmp((const char *)period_node->name, (const char *)"SegmentTemplate")) {
             printf("SegmentTemplate\n");
-            attr = period_node->properties;
+            dash_segmenttemplate_attr_get(segmenttemplate, period_node);
         } else if (!strcasecmp((const char *)period_node->name, (const char *)"SegmentList")) {
             printf("SegmentList\n");
             dash_segmentlist_attr_get(segmentlist, period_node);
