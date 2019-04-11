@@ -8,6 +8,68 @@
 #include <errno.h>
 #include <libxml/parser.h>
 
+struct SegmentList {
+    /* Optional
+     * in combination with the @mediaRange attribute specifies the HTTP-URL for
+     * the Media Segment.
+     * It shall be formated as an <absolute-URI> according to RFC 3986,
+     * Clause 4.3, with a fixed scheme of “http” or “https” or
+     * as a <relative- ref> according to RFC 3986, Clause 4.2.
+     *
+     * If not present, then any BaseURL element is mapped to
+     * the @media attribute and the range attribute shall be present.
+     * */
+    char media[32];
+
+    /* Optional
+     * specifies the byte range within the resource identified by the
+     * @media corresponding to the Media Segment.
+     * The byte range shall be expressed and formatted as a byte-range-spec as
+     * defined in RFC 2616, Clause 14.35.1. It is restricted to
+     * a single expression identifying a contiguous range of bytes.
+     *
+     * If not present,
+     * the Media Segment is the entire resource referenced by the @media attribute.
+     * */
+    char mediaRange[32];
+
+    /*
+     * Optional
+     * in combination with the @indexRange attribute specifies the
+     * HTTP-URL for the Index Segment.
+     * It shall be formated as an <absolute-URI> according to RFC 3986,
+     * Clause 4.3, with a fixed scheme of “http” or “https” or
+     * as a <relative- ref> according to RFC 3986, Clause 4.2.
+     *
+     * If not present and the @indexRange not present either, then
+     * no Index Segment information is provided for this Media Segment.
+     *
+     * If not present and the @indexRange present, then
+     * the @media attribute is mapped to the @index.
+     *
+     * If the @media attribute is not present either, then
+     * any BaseURL element is mapped to the @index attribute and
+     * the @indexRange attribute shall be present.
+     * */
+    int index;
+
+    /*
+     * Optional
+     * specifies the byte range within the resource identified by the
+     * @index corresponding to the Index Segment.
+     *
+     * If @index is not present, it specifies the byte range of the
+     * Segment Index in Media Segment.
+     *
+     * The byte range shall be expressed and formatted as a byte-range-spec as
+     * defined in RFC 2616, Clause 14.35.1.
+     * It is restricted to a single expression identifying a contiguous range of bytes.
+     *
+     * If not present,
+     * the Index Segment is the entire resource referenced by the @index attribute.
+     * */
+    char indexRange;
+};
 struct SegmentBase {
     /* Optional
      * specifies the timescale in units per seconds to be used for
@@ -750,6 +812,30 @@ int dash_baseurl_attr_get(struct BaseUrl *baseurl, xmlNodePtr node)
     return 0;
 }
 
+int dash_segmentlist_attr_get(struct SegmentList *segmentlist, xmlNodePtr node)
+{
+    xmlAttrPtr attr = NULL;
+    xmlChar *val = NULL;
+    attr = node->properties;
+    while (attr) {
+        val = xmlGetProp(node, attr->name);
+        if (!strcasecmp((const char *)attr->name, (const char *)"media")) {
+            printf("media = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"mediaRange")) {
+            printf("mediaRange = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"index")) {
+            printf("index = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"indexRange")) {
+            printf("indexRange = [%s] ", val);
+        } else {
+        }
+        attr = attr->next;
+        xmlFree(val);
+    }
+
+    return 0;
+}
+
 int dash_period_attr_get(struct Period *peroid, xmlAttrPtr attr, xmlNodePtr period_node)
 {
     xmlChar *val = NULL;
@@ -868,6 +954,7 @@ int dash_representation_context_get(struct Representation *representation, xmlNo
 {
     xmlAttrPtr attr = NULL;
     struct SegmentBase *segmentbase = (struct SegmentBase *)malloc(sizeof(struct SegmentBase));
+    struct SegmentList *segmentlist = (struct SegmentList *)malloc(sizeof(struct SegmentList));
     printf("Representation--\n");
 
     dash_representation_attr_get(representation, adaptionset_node);
@@ -888,7 +975,7 @@ int dash_representation_context_get(struct Representation *representation, xmlNo
             dash_segmentbase_context_get(segmentbase, representation_node);
         } else if (!strcasecmp((const char *)representation_node->name, (const char *)"SegmentList")) {
             printf("SegmentList");
-            attr = representation_node->properties;
+            dash_segmentlist_attr_get(segmentlist, representation_node);
         } else if (!strcasecmp((const char *)representation_node->name, (const char *)"SegmentTemplate")) {
             printf("SegmentTemplate");
             attr = representation_node->properties;
@@ -908,6 +995,7 @@ int dash_adaptationset_context_get(xmlNodePtr adaptionset_node, struct Adaptatio
     struct ContentComponent *content_component = (struct ContentComponent *)malloc(sizeof(struct ContentComponent));
     struct Representation *representation = (struct Representation *)malloc(sizeof(struct Representation));
     struct SegmentBase *segmentbase = (struct SegmentBase *)malloc(sizeof(struct SegmentBase));
+    struct SegmentList *segmentlist = (struct SegmentList *)malloc(sizeof(struct SegmentList));
 
     while (adaptionset_node) {
         if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"ContentComponent")) {
@@ -923,7 +1011,7 @@ int dash_adaptationset_context_get(xmlNodePtr adaptionset_node, struct Adaptatio
             attr = adaptionset_node->properties;
         } else if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"SegmentList")) {
             printf("SegmentList\n");
-            attr = adaptionset_node->properties;
+            dash_segmentlist_attr_get(segmentlist, content_component_node);
         } else if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"Accessibility")) {
             printf("Accessibility\n");
             attr = adaptionset_node->properties;
@@ -983,6 +1071,7 @@ int dash_peroid_context_get(xmlNodePtr node, struct Period *dash_peroid)
     struct AdaptationSet *adaptionset = (struct AdaptationSet *)malloc(sizeof(struct AdaptationSet));
     struct BaseUrl *baseurl = (struct BaseUrl *)malloc(sizeof(struct BaseUrl));
     struct SegmentBase *segmentbase = (struct SegmentBase *)malloc(sizeof(struct SegmentBase));
+    struct SegmentList *segmentlist = (struct SegmentList *)malloc(sizeof(struct SegmentList));
 
     printf("[in %s] ", node->name);
     attr = node->properties;
@@ -1006,7 +1095,7 @@ int dash_peroid_context_get(xmlNodePtr node, struct Period *dash_peroid)
             attr = period_node->properties;
         } else if (!strcasecmp((const char *)period_node->name, (const char *)"SegmentList")) {
             printf("SegmentList\n");
-            attr = period_node->properties;
+            dash_segmentlist_attr_get(segmentlist, period_node);
         } else if (!strcasecmp((const char *)period_node->name, (const char *)"AdaptationSet")) {
             printf("AdaptationSet\n");
             attr = period_node->properties;
