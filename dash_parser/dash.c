@@ -8,6 +8,165 @@
 #include <errno.h>
 #include <libxml/parser.h>
 
+struct CommonAttributesElements {
+    /* Optional
+     * specifies the profiles which the associated Representation(s) conform to
+     * the list of Media Presentation profiles as described in 8.
+     * The value shall be a subset of the respective value in any
+     * higher level of the document hierarchy (Representation, Adaptation Set, MPD).
+     *
+     * If not present, the value is inferred to be the same as in the
+     * next higher level of the document hierarchy.
+     * For example, if the value is not present for a Representation, then
+     * @profiles at the Adaptation Set level is valid for the Representation.
+     * */
+    char profiles[32];
+
+    /* Optional
+     * specifies the horizontal visual presentation size of the
+     * video media type on a grid determined by the @sar attribute.
+     * In the absence of @sar width and height are specified as
+     * if the value of @sar were "1:1"
+     *
+     * NOTE
+     *      The visual presentation size of the video is equal to the number of
+     *      horizontal and vertical samples used for presentation after encoded
+     *      samples are cropped in response to encoded cropping parameters,
+     *      "overscan" signaling, or "pan/scan" display parameters, e.g. SEI messages.
+     *
+     * If not present on any level, the value is unknown.
+     * */
+    int width;
+
+    /* Optional
+     * specifies the vertical visual presentation size of the video media type,
+     * on a grid determined by the @sar attribute.
+     *
+     * If not present on any level, the value is unknown.
+     * */
+    int height;
+
+    /* Optional
+     * specifies the sample aspect ratio of the video media component type,
+     * in the form of a string consisting of two integers separated by ‘:’,
+     * e.g.,”10:11”. The first number specifies the horizontal size of the
+     * encoded video pixels (samples) in arbitrary units.
+     * The second number specifies the vertical size of the encoded
+     * video pixels (samples) in same units as the horizontal size.
+     *
+     * If not present on any level, the value is unknown.
+     * */
+    char sar[16];
+
+    /* Optional
+     * specifies the output frame rate (or in the case of interlaced,
+     * half the output field rate) of the video media type in the Representation.
+     * If the frame or field rate is varying, the value is the average frame or
+     * half the average field rate field rate over the entire duration of the Representation.
+     *
+     * The value is coded as a string, either containing two integers separated by
+     * a "/", ("F/D"), or a single integer "F".
+     * The frame rate is the division F/D, or F, respectively, per second
+     * (i.e. the default value of D is “1”).
+     *
+     * If not present on any level, the value is unknown.
+     * */
+    char frameRate[8];
+
+    /* Optional
+     * Either a single decimal integer value specifying the sampling rate or
+     * a whitespace separated pair of decimal integer values specifying the
+     * minimum and maximum sampling rate of the audio media component type.
+     * The values are in samples per second.
+     *
+     * If not present on any level, the value is unknown.
+     * */
+    char audioSamplingRate[8];
+
+    /* Mandatory
+     * specifies the MIME type of the concatenation of the Initialization Segment,
+     *
+     * if present, and all consecutive Media Segments in the Representation.
+     * */
+    char mimeType[32];
+
+    /* Optional
+     * specifies the profiles of Segments that are essential to process the Representation.
+     * The detailed semantics depend on the value of the @mimeType attribute.
+     * The contents of this attribute shall conform to either the pro-simple or
+     * pro-fancy productions of RFC6381, Section 4.5, without the enclosing DQUOTE characters,
+     * i.e. including only the unencodedv or encodedv elements respectively.
+     * As profile identifier the brand identifier for the Segment as defined in 6 shall be used.
+     *
+     * If not present on any level,
+     * the value may be deducted from the value of the @profiles attribute.
+     * */
+    char segmentProfiles[32];
+
+    /* Mandatory
+     * specifies the codecs present within the Representation. The codec parameters shall
+     * also include the profile and level information where applicable.
+     *
+     * The contents of this attribute shall conform to either the simp-list or
+     * fancy-list productions of RFC6381, Section 3.2, without the enclosing DQUOTE characters.
+     * The codec identifier for the Representation's media format,
+     * mapped into the name space for codecs as specified in RFC6381, Section 3.3, shall be used.
+     * */
+    char codecs[32];
+
+    /* Optional
+     * when present, specifies the maximum SAP interval in seconds of all contained media streams,
+     * where the SAP interval is the maximum time interval between the TSAP of
+     * any two successive SAPs of types 1 to 3 inclusive of one media stream in the
+     * associated Representations.
+     *
+     * If not present on any level, the value is unknown.
+     * */
+    char maximumSAPPeriod[32];
+
+    /* Optional
+     * when present and greater than 0, specifies that in the associated Representations,
+     * each Media Segment starts with a SAP of type less than or
+     * equal to the value of this attribute value in each media stream.
+     *
+     * A Media Segment starts with a SAP in a media stream if the
+     * stream contains a SAP in that Media Segment, ISAU is the index of the
+     * first access unit that follows ISAP and ISAP is contained in the Media Segment.
+     *
+     * If not present on any level, the value is unknown.
+     * */
+    char startWithSAP[32];
+
+    /* Optional
+     * specifies the maximum playout rate as a multiple of the regular playout rate,
+     * which is supported with the same decoder profile and level requirements as
+     * the normal playout rate.
+     *
+     * If not present on any level, the value is 1.
+     * */
+    char maxPlayoutRate[32];
+
+    /* Optional
+     * When present and ‘true’, for all contained media streams,
+     * specifies that there is at least one access unit that depends on one or
+     * more other access units for decoding.
+     * When present and ‘false’, for any contained media stream, there is
+     * no access unit that depends on any other access unit for decoding
+     * (e.g. for video all the pictures are intra coded).
+     * If not specified on any level,
+     * there may or may not be coding dependency between access units.
+     * */
+    char codingDependency[32];
+
+    /* Optional
+     * specifies the scan type of the source material of the video media component type.
+     * The value may be equal to one of “progressive”, “interlaced” and “unknown”.
+     *
+     * If not specified on any level, the scan type is "progressive".
+     * */
+    char scanType[32];
+
+};
 struct SegmentTemplate {
     /* Optional
      * specifies the template to create the Media Segment List.
@@ -272,8 +431,7 @@ struct Representation {
      * */
     int mediaStreamStructureId;
 
-
-
+    struct CommonAttributesElements *common;
 };
 struct ContentComponent {
     /* Optional
@@ -466,6 +624,7 @@ struct AdaptationSet {
      * The semantics of @subsegmentStartsWithSAP equal to 0 are unspecified.
      * */
     int subsegmentStartsWithSAP;
+    struct CommonAttributesElements *common;
 };
 
 struct Period {
@@ -675,6 +834,49 @@ int dash_playlist_context_get(char *url, char *buf, int buf_size)
 
     close(fd);
     return mpd_stat.st_size;
+}
+
+int dash_common_attr_get(struct CommonAttributesElements *common, xmlNodePtr node)
+{
+    xmlChar *val = NULL;
+    xmlAttrPtr attr = NULL;
+    attr = node->properties;
+    while (attr) {
+        val = xmlGetProp(node, attr->name);
+        if (!strcasecmp((const char *)attr->name, (const char *)"profiles")) {
+            printf("profiles = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"width")) {
+            printf("width = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"height")) {
+            printf("height = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"sar")) {
+            printf("sar = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"frameRate")) {
+            printf("frameRate = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"audioSamplingRate")) {
+            printf("audioSamplingRate = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"mimeType")) {
+            printf("mimeType = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"segmentProfiles")) {
+            printf("segmentProfiles = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"codecs")) {
+            printf("codecs = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"maximumSAPPeriod")) {
+            printf("maximumSAPPeriod = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"startWithSAP")) {
+            printf("startWithSAP = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"maxPlayoutRate")) {
+            printf("maxPlayoutRate = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"codingDependency")) {
+            printf("codingDependency = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"scanType")) {
+            printf("scanType = [%s] ", val);
+        } else {
+        }
+        attr = attr->next;
+        xmlFree(val);
+    }
+    return 0;
 }
 
 int dash_contentcomponent_attr_get(struct ContentComponent *content_component, xmlAttrPtr attr, xmlNodePtr adaptionset_node)
@@ -1005,16 +1207,15 @@ int dash_representation_context_get(struct Representation *representation, xmlNo
     struct SegmentBase *segmentbase = (struct SegmentBase *)malloc(sizeof(struct SegmentBase));
     struct SegmentList *segmentlist = (struct SegmentList *)malloc(sizeof(struct SegmentList));
     struct SegmentTemplate *segmenttemplate = (struct SegmentTemplate *)malloc(sizeof(struct SegmentTemplate));
+    struct CommonAttributesElements *common = (struct CommonAttributesElements *)malloc(sizeof(struct CommonAttributesElements));
     printf("Representation--\n");
 
     dash_representation_attr_get(representation, adaptionset_node);
+    dash_common_attr_get(common, adaptionset_node);
     printf("\n");
     representation_node = xmlFirstElementChild(adaptionset_node);
     while (representation_node) {
-        if (!strcasecmp((const char *)representation_node->name, (const char *)"CommonAttributesElements")) {
-            printf("CommonAttributesElements\n");
-            attr = representation_node->properties;
-        } else if (!strcasecmp((const char *)representation_node->name, (const char *)"BaseURL")) {
+        if (!strcasecmp((const char *)representation_node->name, (const char *)"BaseURL")) {
             printf("BaseURL\n");
             attr = representation_node->properties;
         } else if (!strcasecmp((const char *)representation_node->name, (const char *)"SubRepresentation")) {
@@ -1124,11 +1325,11 @@ int dash_peroid_context_get(xmlNodePtr node, struct Period *dash_peroid)
     struct SegmentBase *segmentbase = (struct SegmentBase *)malloc(sizeof(struct SegmentBase));
     struct SegmentList *segmentlist = (struct SegmentList *)malloc(sizeof(struct SegmentList));
     struct SegmentTemplate *segmenttemplate = (struct SegmentTemplate *)malloc(sizeof(struct SegmentTemplate));
+    struct CommonAttributesElements *common = (struct CommonAttributesElements *)malloc(sizeof(struct CommonAttributesElements));
 
     printf("[in %s] ", node->name);
     attr = node->properties;
     dash_period_attr_get(dash_peroid, attr, node);
-    printf("\n");
     period_node = xmlFirstElementChild(node);
     while (period_node) {
         if (!strcasecmp((const char *)period_node->name, (const char *)"BaseURL")) {
@@ -1151,6 +1352,7 @@ int dash_peroid_context_get(xmlNodePtr node, struct Period *dash_peroid)
         } else if (!strcasecmp((const char *)period_node->name, (const char *)"AdaptationSet")) {
             printf("AdaptationSet\n");
             attr = period_node->properties;
+            dash_common_attr_get(common, period_node);
             dash_adaptationset_attr_get(attr, period_node, adaptionset);
             printf("\n");
             adaptionset_node = xmlFirstElementChild(period_node);
