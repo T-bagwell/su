@@ -8,6 +8,48 @@
 #include <errno.h>
 #include <libxml/parser.h>
 
+struct SegmentBase {
+    /* Optional
+     * specifies the timescale in units per seconds to be used for
+     * the derivation of different real-time duration values in the Segment Information.
+     *
+     * If not present on any level, it shall be set to 1.
+     *
+     * NOTE:
+     *  This may be any frequency but typically is the media clock frequency of
+     *  one of the media streams (or a positive integer multiple thereof).
+     * */
+    int timescale;
+
+    /* Optional
+     * pecifies the presentation time offset of the Representation relative to
+     * the start of the Period.
+     * The value of the presentation time offset in seconds is the division of
+     * the value of this attribute and the value of the @timescale attribute.
+     * If not present on any level, the value of the presentation time offset is 0.
+     * */
+    int presentationTimeOffset;
+
+    /* Optional
+     * specifies the byte range that contains the Segment Index in
+     * all Media Segments of the Representation.
+     * The byte range shall be expressed and formatted as a byte-range-spec as
+     * defined in RFC 2616, Clause 14.35.1. It is restricted to
+     * a single expression identifying a contiguous range of bytes.
+     * If not present the value is unknown.
+     * */
+    int indexRange;
+
+    /* Optional with Default Value false
+     * when set to 'true' specifies that for all Segments in the Representation,
+     * the data outside the prefix defined by @indexRange contains the data needed to
+     * access all access units of all media streams syntactically and semantically.
+     * This attribute shall not be present if @indexRange is absent.
+     * */
+    int indexRangeExact;
+
+};
+
 struct BaseUrl {
     /* Optional
      * This attribute specifies a relationship between Base URLs such that
@@ -374,6 +416,12 @@ struct Period {
      * */
     int bitstreamSwitching;
 
+    /* specifies default Segment Base information.
+     * Information in this element is overridden by information in
+     * AdapationSet.SegmentBase and
+     * Representation.SegmentBase, if present.
+     * */
+    struct SegmentBase *segmentbase;
 };
 
 struct Period dash_period_context;
@@ -500,11 +548,16 @@ struct dash_mpd_context {
     int64_t maxSubsegmentDuration;
 
     /* specifies descriptive information about the program */
-    struct ProgramInformation pi;
+    struct ProgramInformation *pi;
+
+    /* specifies a base URL that can be used for reference resolution and
+     * alternative URL selection */
+    struct BaseURL *baseurl;
+
+    /* specifies the information of a Period. */
+    struct Period *period;
     /*
-       struct BaseURL baseurl;
        struct Location location;
-       struct Period *period;
        struct Metrics metrics;
        */
 };
@@ -653,6 +706,30 @@ int dash_programinfo_attr_get(struct ProgramInformation *programinfo, xmlNodePtr
     return 0;
 }
 
+int dash_segmentbase_attr_get(struct SegmentBase *segmentbase, xmlNodePtr node)
+{
+    xmlAttrPtr attr = NULL;
+    xmlChar *val = NULL;
+    attr = node->properties;
+    while (attr) {
+        val = xmlGetProp(node, attr->name);
+        if (!strcasecmp((const char *)attr->name, (const char *)"timescale")) {
+            printf("timescale = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"presentationTimeOffset")) {
+            printf("presentationTimeOffset = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"indexRange")) {
+            printf("indexRange = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"indexRangeExact")) {
+            printf("indexRangeExact = [%s] ", val);
+        } else {
+        }
+        attr = attr->next;
+        xmlFree(val);
+    }
+
+    return 0;
+}
+
 int dash_baseurl_attr_get(struct BaseUrl *baseurl, xmlNodePtr node)
 {
     xmlAttrPtr attr = NULL;
@@ -733,6 +810,31 @@ int dash_mpd_attr_get(struct dash_mpd_context *mpd, xmlAttrPtr attr, xmlNodePtr 
     return 0;
 }
 
+int dash_segmentbase_context_get(struct SegmentBase *segmentbase, xmlNodePtr node)
+{
+    xmlChar *val = NULL;
+    xmlNodePtr segmentbase_node = NULL;
+    printf("SegmentBase\n");
+
+    dash_segmentbase_attr_get(segmentbase, node);
+    segmentbase_node = xmlFirstElementChild(node);
+    while (segmentbase_node) {
+        if (!strcasecmp((const char *)segmentbase_node->name, (const char *)"Initialization")) {
+            printf("Initialization\n");
+            val = xmlNodeGetContent(segmentbase_node);
+            printf("Initialization = %s\n", val);
+        } else if (!strcasecmp((const char *)segmentbase_node->name, (const char *)"RepresentationIndex")) {
+            printf("RepresentationIndex\n");
+            val = xmlNodeGetContent(segmentbase_node);
+            printf("RepresentationIndex = %s\n", val);
+        } else {
+        }
+        segmentbase_node = xmlNextElementSibling(segmentbase_node);
+    }
+
+    return 0;
+}
+
 int dash_contentcomponent_context_get(struct ContentComponent *content_component, xmlNodePtr adaptionset_node, xmlNodePtr content_component_node)
 {
     xmlAttrPtr attr = NULL;
@@ -765,6 +867,7 @@ int dash_contentcomponent_context_get(struct ContentComponent *content_component
 int dash_representation_context_get(struct Representation *representation, xmlNodePtr adaptionset_node, xmlNodePtr representation_node)
 {
     xmlAttrPtr attr = NULL;
+    struct SegmentBase *segmentbase = (struct SegmentBase *)malloc(sizeof(struct SegmentBase));
     printf("Representation--\n");
 
     dash_representation_attr_get(representation, adaptionset_node);
@@ -782,7 +885,7 @@ int dash_representation_context_get(struct Representation *representation, xmlNo
             attr = representation_node->properties;
         } else if (!strcasecmp((const char *)representation_node->name, (const char *)"SegmentBase")) {
             printf("SegmentBase\n");
-            attr = representation_node->properties;
+            dash_segmentbase_context_get(segmentbase, representation_node);
         } else if (!strcasecmp((const char *)representation_node->name, (const char *)"SegmentList")) {
             printf("SegmentList");
             attr = representation_node->properties;
@@ -804,6 +907,7 @@ int dash_adaptationset_context_get(xmlNodePtr adaptionset_node, struct Adaptatio
     xmlAttrPtr attr = NULL;
     struct ContentComponent *content_component = (struct ContentComponent *)malloc(sizeof(struct ContentComponent));
     struct Representation *representation = (struct Representation *)malloc(sizeof(struct Representation));
+    struct SegmentBase *segmentbase = (struct SegmentBase *)malloc(sizeof(struct SegmentBase));
 
     while (adaptionset_node) {
         if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"ContentComponent")) {
@@ -813,7 +917,7 @@ int dash_adaptationset_context_get(xmlNodePtr adaptionset_node, struct Adaptatio
             attr = adaptionset_node->properties;
         } else if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"SegmentBase")) {
             printf("SegmentBase\n");
-            attr = adaptionset_node->properties;
+            dash_segmentbase_context_get(segmentbase, content_component_node);
         } else if (!strcasecmp((const char *)adaptionset_node->name, (const char *)"SegmentTemplate")) {
             printf("SegmentTemplate\n");
             attr = adaptionset_node->properties;
@@ -878,6 +982,7 @@ int dash_peroid_context_get(xmlNodePtr node, struct Period *dash_peroid)
     xmlChar *val = NULL;
     struct AdaptationSet *adaptionset = (struct AdaptationSet *)malloc(sizeof(struct AdaptationSet));
     struct BaseUrl *baseurl = (struct BaseUrl *)malloc(sizeof(struct BaseUrl));
+    struct SegmentBase *segmentbase = (struct SegmentBase *)malloc(sizeof(struct SegmentBase));
 
     printf("[in %s] ", node->name);
     attr = node->properties;
@@ -890,10 +995,9 @@ int dash_peroid_context_get(xmlNodePtr node, struct Period *dash_peroid)
             dash_baseurl_attr_get(baseurl, node);
             val = xmlNodeGetContent(node);
             printf("BaseURL: %s\n", val);
-            attr = period_node->properties;
         } else if (!strcasecmp((const char *)period_node->name, (const char *)"SegmentBase")) {
             printf("SegmentBase\n");
-            attr = period_node->properties;
+            dash_segmentbase_context_get(segmentbase, node);
         } else if (!strcasecmp((const char *)period_node->name, (const char *)"Subset")) {
             printf("Subset\n");
             attr = period_node->properties;
