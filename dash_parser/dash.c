@@ -296,6 +296,33 @@ struct SegmentBase {
 
 };
 
+struct MultipleSegmentBaseInformation {
+    /* Optional
+     * If present, specifies the constant approximate Segment duration.
+     * All Segments within this Representation element have the same
+     * duration unless it is the last Segment within the Period,
+     * which could be significantly shorter.
+     *
+     * The value of the duration in seconds is the division of the value of
+     * this attribute and the value of the @timescale attribute associated to
+     * the containing Representation.
+     *
+     * For more details refer to 5.3.9.5.3.
+     * */
+    int duration;
+
+    /* Optional
+     *
+     * specifies the number of the first Media Segment in this Representation in the Period.
+     *
+     * For details refer to 5.3.9.5.3.
+     * */
+    int startNumber;
+
+    /* SegmentTimeline
+     * BitstreamSwitching
+     * */
+};
 struct BaseUrl {
     /* Optional
      * This attribute specifies a relationship between Base URLs such that
@@ -1019,6 +1046,34 @@ int dash_segmentbase_attr_get(struct SegmentBase *segmentbase, xmlNodePtr node)
     return 0;
 }
 
+int dash_multiple_segmentbase_information_attr_get(struct MultipleSegmentBaseInformation *multi_segment_base_info, xmlNodePtr node)
+{
+    xmlAttrPtr attr = NULL;
+    xmlChar *val = NULL;
+    attr = node->properties;
+    while (attr) {
+        val = xmlGetProp(node, attr->name);
+        if (!strcasecmp((const char *)attr->name, (const char *)"duration")) {
+            printf("duration = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"startNumber")) {
+            printf("startNumber = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"timescale")) {
+            printf("timescale = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"presentationTimeOffset")) {
+            printf("presentationTimeOffset = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"indexRange")) {
+            printf("indexRange = [%s] ", val);
+        } else if (!strcasecmp((const char *)attr->name, (const char *)"indexRangeExact")) {
+            printf("indexRangeExact = [%s] ", val);
+        } else {
+        }
+        attr = attr->next;
+        xmlFree(val);
+    }
+
+    return 0;
+}
+
 int dash_baseurl_attr_get(struct BaseUrl *baseurl, xmlNodePtr node)
 {
     xmlAttrPtr attr = NULL;
@@ -1205,6 +1260,7 @@ int dash_representation_context_get(struct Representation *representation, xmlNo
 {
     xmlAttrPtr attr = NULL;
     struct SegmentBase *segmentbase = (struct SegmentBase *)malloc(sizeof(struct SegmentBase));
+    struct MultipleSegmentBaseInformation *multisegmentbaseinfo = (struct MultipleSegmentBaseInformation *)malloc(sizeof(struct MultipleSegmentBaseInformation));
     struct SegmentList *segmentlist = (struct SegmentList *)malloc(sizeof(struct SegmentList));
     struct SegmentTemplate *segmenttemplate = (struct SegmentTemplate *)malloc(sizeof(struct SegmentTemplate));
     struct CommonAttributesElements *common = (struct CommonAttributesElements *)malloc(sizeof(struct CommonAttributesElements));
@@ -1225,7 +1281,8 @@ int dash_representation_context_get(struct Representation *representation, xmlNo
             printf("SegmentBase\n");
             dash_segmentbase_context_get(segmentbase, representation_node);
         } else if (!strcasecmp((const char *)representation_node->name, (const char *)"SegmentList")) {
-            printf("SegmentList");
+            printf("SegmentList\n");
+            dash_multiple_segmentbase_information_attr_get(multisegmentbaseinfo, representation_node);
             dash_segmentlist_attr_get(segmentlist, representation_node);
         } else if (!strcasecmp((const char *)representation_node->name, (const char *)"SegmentTemplate")) {
             printf("SegmentTemplate");
