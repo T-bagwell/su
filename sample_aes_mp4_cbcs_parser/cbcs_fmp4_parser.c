@@ -3248,12 +3248,20 @@ int parse_trun(int fd, int trun_size)
     trun->sample_count = get_int_from_buf(p);
     p += 4;
     printf("\t\t\ttrun->sample_count = [%d]\n", trun->sample_count);
+    /* 0x000001 data-offset-present. */
     if (ext_version_flags[3] & 0x01) {
         /* signed int(32) data_offset; */
         trun->data_offset = get_int_from_buf(p);
         p += 4;
         printf("\t\t\ttrun->data_offset = [%d]\n", trun->data_offset);
     }
+    /* 0x000004 first-sample-flags-present;
+     *      this over-rides the default flags for the first sample only.
+     *      This makes it possible to record a group of
+     *      frames where the first is a key and the rest are difference frames,
+     *      without supplying explicit flags for every sample.
+     *      If this flag and field are used, sample-flags shall not be present.
+     * */
     if (ext_version_flags[3] & 0x04) {
         /* unsigned int(32)  first_sample_flags */
         trun->first_sample_flags = get_int_from_buf(p);
@@ -3262,25 +3270,37 @@ int parse_trun(int fd, int trun_size)
     }
 
     for (i = 0; i < trun->sample_count; i++) {
+        /* 0x000100 sample-duration-present:
+         *      indicates that each sample has its own duration,
+         *      otherwise the default is used.*/
         if (ext_version_flags[2] & 0x01) {
             /* unsigned int(32)  sample_duration; */
             trun->trunss[i].sample_duration = get_int_from_buf(p);
             p += 4;
-            printf("\t\t\t\ttrun->trunss[i].sample_duration = [%d]\n", trun->trunss[i].sample_duration);
+            printf("\t\t\t\ttrun->trunss[%d].sample_duration = [%d]\n", i, trun->trunss[i].sample_duration);
         }
+        /* 0x000200 sample-size-present:
+         *      each sample has its own size,
+         *      otherwise the default is used */
         if (ext_version_flags[2] & 0x02) {
             /* unsigned int(32)  sample_size; */
             trun->trunss[i].sample_size = get_int_from_buf(p);
             p += 4;
-            printf("\t\t\t\ttrun->trunss[i].sample_size = [%d]\n", trun->trunss[i].sample_size);
+            printf("\t\t\t\ttrun->trunss[%d].sample_size = [%d]\n", i, trun->trunss[i].sample_size);
         }
+        /* 0x000400 sample-flags-present:
+         *      each sample has its own flags,
+         *      otherwise the default is used */
         if (ext_version_flags[2] & 0x04) {
             /* unsigned int(32)  sample_flags; */
             trun->trunss[i].sample_flags = get_int_from_buf(p);
             p += 4;
-            printf("\t\t\t\ttrun->trunss[i].sample_flags = [%d]\n", trun->trunss[i].sample_flags);
+            printf("\t\t\t\ttrun->trunss[%d].sample_flags = [%d]\n", i, trun->trunss[i].sample_flags);
         }
-        if (ext_version_flags[2] & 0x04) {
+        /* 0x000800 sample-composition-time-offsets-present:
+         *      each sample has a composition time offset
+         *      (e.g. as used for I/P/B video in MPEG). */
+        if (ext_version_flags[2] & 0x08) {
             /* if (version == 0)
             *  unsigned int(32) sample_composition_time_offset;
             * else
@@ -3288,7 +3308,7 @@ int parse_trun(int fd, int trun_size)
             * */
             trun->trunss[i].sample_composition_time_offset = get_int_from_buf(p);
             p += 4;
-            printf("\t\t\t\ttrun->trunss[i].sample_composition_time_offset = [%d]\n", trun->trunss[i].sample_composition_time_offset);
+            printf("\t\t\t\ttrun->trunss[%d].sample_composition_time_offset = [%d]\n", i, trun->trunss[i].sample_composition_time_offset);
         }
     }
 
@@ -3392,6 +3412,7 @@ void parse_moof(int fd, int moof_size)
     while(size > 0) {
         tag_size = get_size(fd);
         if (tag_size <= 0) {
+            printf("tag_size <= 0\n");
             break;
         }
         size -= tag_size;
@@ -3423,7 +3444,7 @@ void get_root_data(int fd)
     unsigned int filesize = lseek(fd, 0, SEEK_END);
     cur_pos = lseek(fd, cur_pos, SEEK_SET);
     fprintf(stderr, "filesize = [%d]\n", filesize);
-
+    int last_pos = 0;
     while (cur_pos < filesize) {
         cur_pos = lseek(fd, 0, SEEK_CUR);
         if (cur_pos >= filesize)
@@ -3436,9 +3457,10 @@ void get_root_data(int fd)
             parse_moov(fd, tag_size - 8);
         } else if (!strcmp((char *)buf, "mdat")) {
             printf("in mdat %u\n", tag_size - 8);
+
         } else if (!strcmp((char *)buf, "moof")) {
             printf("in moof\n");
-//            parse_moof(fd, tag_size - 8);
+            parse_moof(fd, tag_size - 8);
         } else if (!strcmp((char *)buf, "ftyp")) {
             printf("in ftyp\n");
             parse_ftyp(fd, tag_size - 8);
