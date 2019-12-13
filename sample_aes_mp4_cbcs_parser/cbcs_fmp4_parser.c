@@ -340,8 +340,33 @@ struct ES_Descriptor {
     uint8_t URLlength;
     uint8_t *URLstring;
     uint16_t OCR_ES_Id;
-    
 };
+
+struct TrackFragmentBox {
+    struct TrackFragmentHeaderBox *tfhd_box;
+    struct TrackRunBox *trun_box;
+};
+
+struct MoofBox {
+    struct MovieFragmentHeaderBox *mfhd_box;
+    struct TrackFragmentBox *traf_box;
+    struct MoofBox *next;
+};
+
+struct MoovBox {
+    int i;
+};
+
+struct MdatBox {
+    int i;
+};
+
+struct MP4Box_Root {
+    struct MoovBox *moov_box;
+    struct MoofBox *moof_box[1024];
+    struct MdatBox *mdat_box;
+};
+
 struct tag_info tag_table[] = {
     { MKTAG('f','t','y','p'), "ftyp"},
     { MKTAG('m','p','4','2'), "mp42"},
@@ -356,6 +381,9 @@ struct tag_info tag_table[] = {
 };
 
 struct tag_context *tags_root;
+
+int parse_trak(int fd, int trak_size);
+int parse_mp4a(unsigned char *in, int mp4a_size);
 
 int32_t get_u8(int fd)
 {
@@ -3133,7 +3161,7 @@ int parse_ftyp(int fd, int size)
     return 0;
 }
 
-int parse_mfhd(int fd, int mfhd_size)
+int parse_mfhd(int fd, int mfhd_size, struct MoofBox *moof_box)
 {
     printf("in mfhd\n");
     int size = mfhd_size - 4; /* aligned(8) class MovieFragmentHeaderBox extends FullBox(‘mfhd’, version, 0)  */
@@ -3153,6 +3181,8 @@ int parse_mfhd(int fd, int mfhd_size)
         printf("Alloc MovieFragmentHeaderBox error\n");
         return -ENOMEM;
     }
+    moof_box->mfhd_box = mfhd;
+
     /* read version and flags of the extends */
     read(fd, ext_version_flags, 4);
     /* read mfhd context */
@@ -3168,7 +3198,7 @@ int parse_mfhd(int fd, int mfhd_size)
     return 0;
 }
 
-int parse_tfhd(int fd, int tfhd_size)
+int parse_tfhd(int fd, int tfhd_size, struct TrackFragmentBox *traf_box)
 {
     printf("in tfhd\n");
     int size = tfhd_size - 4; /* aligned(8) class TrackFragmentHeaderBox extends FullBox(‘tfhd’, version, 0)  */
@@ -3184,9 +3214,12 @@ int parse_tfhd(int fd, int tfhd_size)
 
     tfhd = malloc(sizeof(struct TrackFragmentHeaderBox));
     if (!tfhd) {
+        free(buf);
         printf("Alloc TrackFragmentHeaderBox error\n");
         return -ENOMEM;
     }
+
+    traf_box->tfhd_box = tfhd;
     /* read version and flags of the extends */
     read(fd, ext_version_flags, 4);
     /* read tfhd context */
@@ -3228,7 +3261,7 @@ int parse_tfhd(int fd, int tfhd_size)
     return 0;
 }
 
-int parse_trun(int fd, int trun_size)
+int parse_trun(int fd, int trun_size, struct TrackFragmentBox *traf_box)
 {
     printf("in trun\n");
     struct TrackRunBox *trun;
@@ -3241,6 +3274,12 @@ int parse_trun(int fd, int trun_size)
         return -ENOMEM;
 
     trun = malloc(sizeof(struct TrackRunBox));
+    if (!trun) {
+        free(buf);
+        printf("Alloc memory failed: trun\n");
+        return -ENOMEM;
+    }
+    traf_box->trun_box = trun;
     /* read version and flags of the extends */
     read(fd, ext_version_flags, 4);
     read(fd, buf, size);
@@ -3346,13 +3385,22 @@ int parse_tfdt(int fd, int tfdt_size)
     return 0;
 }
 
-int parse_traf(int fd, int traf_size)
+int parse_traf(int fd, int traf_size, struct MoofBox *moof_box)
 {
     printf("in traf\n");
     int size = traf_size;
     int tag_size = 0;
     unsigned char buf[5];
     unsigned int tag_name = 0;
+    int i;
+    struct TrackFragmentBox *traf_box = NULL;
+
+    traf_box = malloc(sizeof(struct TrackFragmentBox));
+    if (!traf_box) {
+        printf("alloc memory failed, traf_box\n");
+        return -ENOMEM;
+    }
+    moof_box->traf_box = traf_box;
 
     while(size > 0) {
         tag_size = get_size(fd);
@@ -3366,10 +3414,10 @@ int parse_traf(int fd, int traf_size)
         printf("\t\t");
         switch (tag_name) {
             case MKTAG('t','f','h','d'):
-                parse_tfhd(fd, tag_size - 8);
+                parse_tfhd(fd, tag_size - 8, traf_box);
                 break;
             case MKTAG('t','r','u','n'):
-                parse_trun(fd, tag_size - 8);
+                parse_trun(fd, tag_size - 8, traf_box);
                 break;
             case MKTAG('s','b','g','p'):
                 parse_sbgp(fd, tag_size - 8);
@@ -3401,14 +3449,17 @@ int parse_traf(int fd, int traf_size)
     return 0;
 }
 
-void parse_moof(int fd, int moof_size)
+void parse_moof(int fd, int moof_size, int sequence, struct MP4Box_Root *root)
 {
     int size = moof_size;
     int tag_size = 0;
     unsigned char buf[5];
     unsigned int tag_name = 0;
+    struct MoofBox *moof_box = malloc(sizeof(struct MoofBox));
 
-    printf("in moof\n");
+    memset(moof_box, 0, sizeof(struct MoofBox));
+
+    root->moof_box[sequence] = moof_box;
     while(size > 0) {
         tag_size = get_size(fd);
         if (tag_size <= 0) {
@@ -3422,10 +3473,10 @@ void parse_moof(int fd, int moof_size)
         printf("\t");
         switch (tag_name) {
             case MKTAG('m','f','h','d'):
-                parse_mfhd(fd, tag_size - 8);
+                parse_mfhd(fd, tag_size - 8, moof_box);
                 break;
             case MKTAG('t','r','a','f'):
-                parse_traf(fd, tag_size - 8);
+                parse_traf(fd, tag_size - 8, moof_box);
                 break;
             default:
                 printf("unknow\n");
@@ -3434,6 +3485,22 @@ void parse_moof(int fd, int moof_size)
     }
 
     return;
+}
+
+void parse_mdat(int fd, int moof_size, int sequence, struct MP4Box_Root *root)
+{
+    struct MoofBox *moof = root->moof_box[sequence];
+    int sample_size = moof->traf_box->trun_box->trunss[0].sample_size;
+    int sample_count = moof->traf_box->trun_box->sample_count;
+    int i = 0;
+    int total_size = 0;
+
+    for (i = 0; i < sample_count; i++) {
+        sample_size = moof->traf_box->trun_box->trunss[i].sample_size;
+        total_size += sample_size;
+        printf("moof->traf->trun->trunss[%d]->sample_size = [%d]\n", i, sample_size);
+    }
+    printf("total_size = [%d]\n", total_size);
 }
 
 void get_root_data(int fd)
@@ -3445,6 +3512,11 @@ void get_root_data(int fd)
     cur_pos = lseek(fd, cur_pos, SEEK_SET);
     fprintf(stderr, "filesize = [%d]\n", filesize);
     int last_pos = 0;
+    int sequence = 0;
+    struct MP4Box_Root root;
+    struct MoofBox *moofbox = NULL;
+
+    memset(&root, 0, sizeof(root));
     while (cur_pos < filesize) {
         cur_pos = lseek(fd, 0, SEEK_CUR);
         if (cur_pos >= filesize)
@@ -3457,10 +3529,11 @@ void get_root_data(int fd)
             parse_moov(fd, tag_size - 8);
         } else if (!strcmp((char *)buf, "mdat")) {
             printf("in mdat %u\n", tag_size - 8);
-
+            parse_mdat(fd, tag_size - 8, sequence - 1, &root);
         } else if (!strcmp((char *)buf, "moof")) {
             printf("in moof\n");
-            parse_moof(fd, tag_size - 8);
+            parse_moof(fd, tag_size - 8, sequence, &root);
+            sequence++;
         } else if (!strcmp((char *)buf, "ftyp")) {
             printf("in ftyp\n");
             parse_ftyp(fd, tag_size - 8);
