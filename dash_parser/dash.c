@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
+#include <time.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -721,7 +722,7 @@ struct dash_mpd_context {
      * As profile identifier the URI defined for the conforming
      * Media Presentation profiles as described in 8 shall be used.
      * */
-    int profiles;
+    char profiles[1024];
 
     /* Optional with Default Value,
      * specifies whether the Media Presentation Description may be
@@ -744,6 +745,16 @@ struct dash_mpd_context {
      * all Segments described in the MPD shall become available at the time the MPD becomes available.
      * */
     int64_t availabilityStartTime;
+
+    /* Optional with Default Value,
+     * specifies the wall-clock time when the MPD was generated and
+     * published at the origin server. MPDs with a later value of
+     * @publishTime shall be an update as defined in 5.4 to
+     * MPDs with earlier @publishTime.
+     *
+     * Must be present for @type='dynamic'
+     * */
+    int64_t publishTime;
 
     /*
      * Optional
@@ -834,6 +845,80 @@ struct dash_mpd_context {
        struct Metrics metrics;
        */
 };
+
+static uint64_t get_utc_date_time_insec(const char *datetime)
+{
+    struct tm timeinfo;
+    int year = 0;
+    int month = 0;
+    int day = 0;
+    int hour = 0;
+    int minute = 0;
+    int ret = 0;
+    float second = 0.0;
+
+    /* ISO-8601 date parser */
+    if (!datetime)
+        return 0;
+
+    ret = sscanf(datetime, "%d-%d-%dT%d:%d:%fZ", &year, &month, &day, &hour, &minute, &second);
+    /* year, month, day, hour, minute, second  6 arguments */
+    if (ret != 6) {
+        printf("get_utc_date_time_insec get a wrong time format\n");
+    }
+    timeinfo.tm_year = year - 1900;
+    timeinfo.tm_mon  = month - 1;
+    timeinfo.tm_mday = day;
+    timeinfo.tm_hour = hour;
+    timeinfo.tm_min  = minute;
+    timeinfo.tm_sec  = (int)second;
+
+    return timegm(&timeinfo);
+}
+
+static uint32_t get_duration_insec(const char *duration)
+{
+    /* ISO-8601 duration parser */
+    uint32_t days = 0;
+    uint32_t hours = 0;
+    uint32_t mins = 0;
+    uint32_t secs = 0;
+    int size = 0;
+    float value = 0;
+    char type = '\0';
+    const char *ptr = duration;
+
+    while (*ptr) {
+        if (*ptr == 'P' || *ptr == 'T') {
+            ptr++;
+            continue;
+        }
+
+        if (sscanf(ptr, "%f%c%n", &value, &type, &size) != 2) {
+            printf("get_duration_insec get a wrong time format\n");
+            return 0; /* parser error */
+        }
+        switch (type) {
+            case 'D':
+                days = (uint32_t)value;
+                break;
+            case 'H':
+                hours = (uint32_t)value;
+                break;
+            case 'M':
+                mins = (uint32_t)value;
+                break;
+            case 'S':
+                secs = (uint32_t)value;
+                break;
+            default:
+                // handle invalid type
+                break;
+        }
+        ptr += size;
+    }
+    return  ((days * 24 + hours) * 60 + mins) * 60 + secs;
+}
 
 int dash_playlist_context_get(char *url, char *buf, int buf_size)
 {
@@ -1171,17 +1256,28 @@ int dash_mpd_attr_get(struct dash_mpd_context *mpd, xmlAttrPtr attr, xmlNodePtr 
     while (attr) {
         val = xmlGetProp(node, attr->name);
         if (!strcasecmp((const char *)attr->name, (const char *)"id")) {
-            printf( "id = [%s]\n", val);
+            mpd->id = atoi((char *)val);
+            printf( "id = [%d]\n", mpd->id);
         } else if (!strcasecmp((const char *)attr->name, (const char *)"profiles")) {
-            printf( "profiles = [%s]\n", val);
+            memset(mpd->profiles, 0, sizeof(mpd->profiles));
+            strncpy(mpd->profiles, (char *)val, strlen((char *)val));
+            printf( "profiles = [%s]\n", mpd->profiles);
         } else if (!strcasecmp((const char *)attr->name, (const char *)"availabilityStartTime")) {
             printf( "availabilityStartTime = [%s]\n", val);
+            mpd->availabilityStartTime = get_utc_date_time_insec((const char *)val);
+            printf( "availabilityStartTime = [%lld]\n", mpd->availabilityStartTime);
         } else if (!strcasecmp((const char *)attr->name, (const char *)"availabilityEndTime")) {
             printf( "availabilityEndTime = [%s]\n", val);
+            mpd->availabilityEndTime = get_utc_date_time_insec((const char *)val);
+            printf( "availabilityEndTime = [%lld]\n", mpd->availabilityEndTime);
         } else if (!strcasecmp((const char *)attr->name, (const char *)"mediaPresentationDuration")) {
             printf( "mediaPresentationDuration = [%s]\n", val);
+            mpd->mediaPresentationDuration = get_duration_insec((const char *)val);
+            printf( "mediaPresentationDuration = [%lld]\n", mpd->mediaPresentationDuration);
         } else if (!strcasecmp((const char *)attr->name, (const char *)"minimumUpdatePeriod")) {
             printf( "minimumUpdatePeriod = [%s]\n", val);
+            mpd->minimumUpdatePeriod = get_duration_insec((const char *)val);
+            printf( "minimumUpdatePeriod = [%lld]\n", mpd->minimumUpdatePeriod);
         } else if (!strcasecmp((const char *)attr->name, (const char *)"minBufferTime")) {
             printf( "minBufferTime = [%s]\n", val);
         } else if (!strcasecmp((const char *)attr->name, (const char *)"timeShiftBufferDepth")) {
@@ -1194,6 +1290,8 @@ int dash_mpd_attr_get(struct dash_mpd_context *mpd, xmlAttrPtr attr, xmlNodePtr 
             printf( "maxSubsegmentDuration = [%s]\n", val);
         } else if (!strcasecmp((const char *)attr->name, (const char *)"publishTime")) {
             printf( "publishTime = [%s]\n", val);
+            mpd->publishTime = get_utc_date_time_insec((const char *)val);
+            printf( "publishTime = [%lld]\n", mpd->publishTime);
         } else {
         }
         attr = attr->next;
