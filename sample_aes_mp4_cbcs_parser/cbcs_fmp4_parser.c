@@ -342,6 +342,12 @@ struct ES_Descriptor {
     uint16_t OCR_ES_Id;
 };
 
+struct AVCParameterSample {
+    unsigned int PictureLength;
+    unsigned int NALUnitLength;
+    char *NALUnit;
+};
+
 struct TrackFragmentBox {
     struct TrackFragmentHeaderBox *tfhd_box;
     struct TrackRunBox *trun_box;
@@ -3292,7 +3298,7 @@ int parse_trun(int fd, int trun_size, struct TrackFragmentBox *traf_box)
         /* signed int(32) data_offset; */
         trun->data_offset = get_int_from_buf(p);
         p += 4;
-        printf("\t\t\ttrun->data_offset = [%d]\n", trun->data_offset);
+        printf("\t\t\ttrun->data_offset = [%d] [%#x]\n", trun->data_offset, trun->data_offset);
     }
     /* 0x000004 first-sample-flags-present;
      *      this over-rides the default flags for the first sample only.
@@ -3325,7 +3331,7 @@ int parse_trun(int fd, int trun_size, struct TrackFragmentBox *traf_box)
             /* unsigned int(32)  sample_size; */
             trun->trunss[i].sample_size = get_int_from_buf(p);
             p += 4;
-            printf("\t\t\t\ttrun->trunss[%d].sample_size = [%d]\n", i, trun->trunss[i].sample_size);
+            printf("\t\t\t\ttrun->trunss[%d].sample_size = [%d] [%#x]\n", i, trun->trunss[i].sample_size, trun->trunss[i].sample_size);
         }
         /* 0x000400 sample-flags-present:
          *      each sample has its own flags,
@@ -3487,18 +3493,38 @@ void parse_moof(int fd, int moof_size, int sequence, struct MP4Box_Root *root)
     return;
 }
 
-void parse_mdat(int fd, int moof_size, int sequence, struct MP4Box_Root *root)
+void parse_mdat(int fd, int mdat_size, int sequence, struct MP4Box_Root *root)
 {
     struct MoofBox *moof = root->moof_box[sequence];
     int sample_size = moof->traf_box->trun_box->trunss[0].sample_size;
     int sample_count = moof->traf_box->trun_box->sample_count;
     int i = 0;
+    int j = 0;
     int total_size = 0;
+    int offset = moof->traf_box->trun_box->data_offset;
+    char *mdata_context = malloc(mdat_size);
+    if (!mdata_context) {
+        printf("alloc mdata memory failed\n");
+        return;
+    }
+    read(fd, mdata_context, mdat_size);
+    char *p = mdata_context;
 
     for (i = 0; i < sample_count; i++) {
         sample_size = moof->traf_box->trun_box->trunss[i].sample_size;
         total_size += sample_size;
-        printf("moof->traf->trun->trunss[%d]->sample_size = [%d]\n", i, sample_size);
+        unsigned int PictureLength = sample_size;
+        for (j = 0; j < sample_size;) {
+            unsigned int NALUnitLength = get_int_from_buf(p);
+            p += 4;
+            printf("NALUnitLength = [%d], ", NALUnitLength);
+            unsigned char *NALUnit = malloc(NALUnitLength);
+            memcpy(NALUnit, p, NALUnitLength);
+            printf("NALUint Type = [%#x]\n", NALUnit[0]);
+            p += NALUnitLength;
+            j += 4 + NALUnitLength;
+        }
+        //printf("moof->traf->trun->trunss[%d]->sample_size = [%d] offset = [%#x]\n", i, sample_size, total_size + offset);
     }
     printf("total_size = [%d]\n", total_size);
 }
